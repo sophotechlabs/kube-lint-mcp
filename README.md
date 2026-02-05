@@ -14,7 +14,7 @@ MCP server for Kubernetes manifest and Helm chart validation — validates manif
 ### From source
 
 ```bash
-git clone https://github.com/sophotech/kube-lint-mcp.git
+git clone https://github.com/sophotechlabs/kube-lint-mcp.git
 cd kube-lint-mcp
 pip install -e ".[dev]"
 ```

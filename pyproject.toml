@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 authors = [
-    { name = "Sophotech" },
+    { name = "Artem Muterko", email = "artem@sopho.tech" },
 ]
 keywords = ["kubernetes", "mcp", "helm", "fluxcd", "validation", "gitops"]
 classifiers = [
@@ -34,9 +34,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sophotech/kube-lint-mcp"
-Repository = "https://github.com/sophotech/kube-lint-mcp"
-Issues = "https://github.com/sophotech/kube-lint-mcp/issues"
+Homepage = "https://github.com/sophotechlabs/kube-lint-mcp"
+Repository = "https://github.com/sophotechlabs/kube-lint-mcp"
+Issues = "https://github.com/sophotechlabs/kube-lint-mcp/issues"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
