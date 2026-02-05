@@ -133,6 +133,4 @@ make lint    # flake8
 
 ---
 
-Built by [Artem Muterko](https://github.com/sophotechlabs) at [Sophotech](https://sopho.tech)
-
 If this tool saves you from a bad deploy, consider [sponsoring](https://github.com/sponsors/sophotechlabs).
