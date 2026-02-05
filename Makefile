@@ -1,4 +1,4 @@
-.PHONY: test lint install
+.PHONY: test lint install ci
 
 install:
 	pip install -e ".[dev]"
@@ -8,3 +8,6 @@ test:
 
 lint:
 	flake8 src/ tests/
+
+ci:
+	python -m pytest tests/ --cov --cov-report=xml
