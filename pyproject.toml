@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kube-lint-mcp"
+version = "0.1.0"
+description = "MCP server for Kubernetes manifest and Helm chart validation"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    { name = "Sophotech" },
+]
+keywords = ["kubernetes", "mcp", "helm", "fluxcd", "validation", "gitops"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "mcp>=1.0.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "flake8",
+]
+
+[project.urls]
+Homepage = "https://github.com/sophotech/kube-lint-mcp"
+Repository = "https://github.com/sophotech/kube-lint-mcp"
+Issues = "https://github.com/sophotech/kube-lint-mcp/issues"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+addopts = "--cov=src/kube_lint_mcp --cov-report=term-missing"
