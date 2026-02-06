@@ -241,5 +241,23 @@ def test_validate_helm_chart_kubectl_not_found(mock_run, tmp_path):
 
     result = helm_lint.validate_helm_chart(str(tmp_path))
 
-    assert result.lint_passed is False
-    assert "kubectl not found" in result.lint_error
+    assert result.lint_passed is True
+    assert result.render_passed is True
+    assert result.client_passed is False
+    assert "kubectl not found" in result.client_error
+
+
+@mock.patch("subprocess.run")
+def test_validate_helm_chart_malformed_rendered_yaml(mock_run, tmp_path):
+    (tmp_path / "Chart.yaml").write_text("name: test")
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="{{{bad yaml", stderr=""),
+    ]
+
+    result = helm_lint.validate_helm_chart(str(tmp_path))
+
+    assert result.lint_passed is True
+    assert result.render_passed is True
+    assert result.client_passed is False
+    assert "Failed to parse rendered YAML" in result.render_error

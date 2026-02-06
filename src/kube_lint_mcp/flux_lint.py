@@ -4,6 +4,8 @@ import subprocess
 from pathlib import Path
 from dataclasses import dataclass
 
+from kube_lint_mcp.dryrun import build_ctx_args, kubectl_dry_run
+
 
 @dataclass
 class ValidationResult:
@@ -94,66 +96,15 @@ def validate_manifest(file_path: str, context: str | None = None) -> ValidationR
     Returns:
         ValidationResult with pass/fail status and any errors
     """
-    warnings = []
-    ctx_args = ["--context", context] if context else []
-
-    try:
-        # Client dry-run
-        client_result = subprocess.run(
-            ["kubectl", *ctx_args, "apply", "--dry-run=client", "-f", file_path],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        client_passed = client_result.returncode == 0
-        client_error = client_result.stderr.strip() if not client_passed else None
-
-        if not client_passed:
-            return ValidationResult(
-                file=file_path,
-                client_passed=False,
-                server_passed=False,
-                client_error=client_error,
-            )
-
-        # Server dry-run
-        server_result = subprocess.run(
-            ["kubectl", *ctx_args, "apply", "--dry-run=server", "-f", file_path],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        server_passed = server_result.returncode == 0
-        server_error = server_result.stderr.strip() if not server_passed else None
-
-        # Check for deprecation warnings in output
-        output = server_result.stdout + server_result.stderr
-        for line in output.split("\n"):
-            if "deprecated" in line.lower():
-                warnings.append(line.strip())
-
-        return ValidationResult(
-            file=file_path,
-            client_passed=client_passed,
-            server_passed=server_passed,
-            server_error=server_error,
-            warnings=warnings if warnings else None,
-        )
-
-    except subprocess.TimeoutExpired:
-        return ValidationResult(
-            file=file_path,
-            client_passed=False,
-            server_passed=False,
-            client_error="Timeout during validation",
-        )
-    except FileNotFoundError:
-        return ValidationResult(
-            file=file_path,
-            client_passed=False,
-            server_passed=False,
-            client_error="kubectl not found",
-        )
+    dr = kubectl_dry_run(file_path, context=context)
+    return ValidationResult(
+        file=file_path,
+        client_passed=dr.client_passed,
+        server_passed=dr.server_passed,
+        client_error=dr.client_error,
+        server_error=dr.server_error,
+        warnings=dr.warnings,
+    )
 
 
 def validate_manifests(path: str, context: str | None = None) -> list[ValidationResult]:
@@ -186,7 +137,7 @@ def run_flux_check(context: str | None = None) -> tuple[bool, str]:
     Returns:
         Tuple of (success, output)
     """
-    ctx_args = ["--context", context] if context else []
+    ctx_args = build_ctx_args(context)
     try:
         result = subprocess.run(
             ["flux", *ctx_args, "check"], capture_output=True, text=True, timeout=60
@@ -208,7 +159,7 @@ def get_flux_status(context: str | None = None) -> tuple[bool, str]:
     Returns:
         Tuple of (success, output)
     """
-    ctx_args = ["--context", context] if context else []
+    ctx_args = build_ctx_args(context)
     try:
         result = subprocess.run(
             ["flux", *ctx_args, "get", "all", "-A"],

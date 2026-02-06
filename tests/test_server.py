@@ -45,16 +45,11 @@ async def test_select_context_empty_param():
 @mock.patch("subprocess.run")
 async def test_select_context_not_found(mock_run):
     mock_run.side_effect = [
-        # context_exists -> get_kubectl_contexts (contexts list)
+        # get_kubectl_contexts (contexts list)
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="ctx-a\nctx-b\n", stderr=""
         ),
-        # context_exists -> get_kubectl_contexts (current)
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="ctx-a\n", stderr=""),
-        # call_tool calls get_kubectl_contexts again for error message
-        subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="ctx-a\nctx-b\n", stderr=""
-        ),
+        # get_kubectl_contexts (current)
         subprocess.CompletedProcess(args=[], returncode=0, stdout="ctx-a\n", stderr=""),
     ]
 
@@ -918,3 +913,18 @@ async def test_helm_dryrun_shows_values_and_namespace(mock_run, tmp_path):
 
     assert f"Values: {values_file}" in text
     assert "Namespace: production" in text
+
+
+# path normalization tests
+
+
+def test_normalize_path_expands_tilde():
+    result = server._normalize_path("~/k8s")
+    assert "~" not in result
+    assert result.startswith("/")
+
+
+def test_normalize_path_resolves_relative():
+    result = server._normalize_path("./manifests")
+    assert result.startswith("/")
+    assert "/." not in result

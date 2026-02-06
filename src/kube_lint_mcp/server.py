@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+from pathlib import Path
 from typing import Any, Sequence
 
 try:
@@ -55,6 +56,11 @@ def _format_step(
     return lines
 
 
+def _normalize_path(path: str) -> str:
+    """Expand ~ and resolve relative paths."""
+    return str(Path(path).expanduser().resolve())
+
+
 def _format_summary(passed: int, failed: int) -> list[str]:
     """Return the summary footer lines used by dryrun handlers."""
     lines = [
@@ -83,6 +89,8 @@ async def list_tools() -> list[Tool]:
                 "Select the Kubernetes context for all subsequent operations."
                 " MUST be called before using any other tool."
                 " Does NOT mutate global kubeconfig — context is held in memory only."
+                " IMPORTANT: Do NOT call this automatically."
+                " Always list contexts first and ask the user which context to use."
             ),
             inputSchema={
                 "type": "object",
@@ -99,7 +107,10 @@ async def list_tools() -> list[Tool]:
             name="list_kube_contexts",
             description=(
                 "List available kubectl contexts."
-                " Use this to see available contexts, then call select_kube_context to choose one."
+                " Use this to see available contexts,"
+                " then ALWAYS present the list to the user and ask them"
+                " which context they want to use before calling select_kube_context."
+                " NEVER automatically select a context without user confirmation."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
@@ -219,8 +230,8 @@ def _handle_select_context(arguments: dict[str, Any]) -> list[TextContent]:
     if not ctx:
         return _text("Error: 'context' parameter is required")
 
-    if not flux_lint.context_exists(ctx):
-        contexts, current = flux_lint.get_kubectl_contexts()
+    contexts, current = flux_lint.get_kubectl_contexts()
+    if ctx not in contexts:
         lines = [f"Error: Context '{ctx}' not found.", "", "Available contexts:"]
         for c in contexts:
             marker = " (current global)" if c == current else ""
@@ -254,7 +265,10 @@ def _handle_list_contexts(arguments: dict[str, Any]) -> list[TextContent]:
     if _selected_context:
         lines.append(f"Selected context: {_selected_context}")
     else:
-        lines.append("No context selected. Use select_kube_context to choose one.")
+        lines.append(
+            "No context selected."
+            " Ask the user which context to use, then call select_kube_context."
+        )
 
     return _text("\n".join(lines))
 
@@ -267,6 +281,7 @@ def _handle_flux_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     path = arguments.get("path")
     if not path:
         return _text("Error: 'path' parameter is required")
+    path = _normalize_path(path)
 
     results = flux_lint.validate_manifests(path, context=_selected_context)
 
@@ -344,6 +359,7 @@ def _handle_kustomize_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     path = arguments.get("path")
     if not path:
         return _text("Error: 'path' parameter is required")
+    path = _normalize_path(path)
 
     if not kustomize_lint.is_kustomization(path):
         return _text(
@@ -408,8 +424,11 @@ def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     chart_path = arguments.get("chart_path")
     if not chart_path:
         return _text("Error: 'chart_path' parameter is required")
+    chart_path = _normalize_path(chart_path)
 
     values_file = arguments.get("values_file")
+    if values_file:
+        values_file = _normalize_path(values_file)
     namespace = arguments.get("namespace")
     release_name = arguments.get("release_name", "release-name")
 
@@ -513,7 +532,7 @@ async def call_tool(
     if handler is None:
         return _text(f"Unknown tool: {name}")
 
-    return handler(arguments)
+    return await asyncio.to_thread(handler, arguments)
 
 
 async def main():  # pragma: no cover

@@ -16,7 +16,8 @@ Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Claud
 ```
 You: "Validate the flux manifests in ./k8s/infrastructure/"
 
-Claude: calls select_kube_context → flux_dryrun
+Claude: calls list_kube_contexts → presents list → you confirm "staging"
+        calls select_kube_context → flux_dryrun
 
   FluxCD Dry-Run Validation
   Context: staging
@@ -97,6 +98,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 | `select_kube_context` | Pick a cluster context (held in memory, no kubeconfig mutation). **Call first.** |
 | `list_kube_contexts` | Show available kubectl contexts and which is selected |
 | `flux_dryrun` | Validate FluxCD YAML with client + server dry-run |
+| `kustomize_dryrun` | Build and dry-run a Kustomize overlay end-to-end |
 | `helm_dryrun` | Lint, render, and dry-run a Helm chart end-to-end |
 | `flux_check` | Verify Flux installation health |
 | `flux_status` | Show Flux reconciliation status across namespaces |
@@ -105,7 +107,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 1. `list_kube_contexts` — see available clusters
 2. `select_kube_context` — target a cluster (in-memory only, never mutates kubeconfig)
-3. `flux_dryrun` or `helm_dryrun` — validate before committing
+3. `flux_dryrun`, `kustomize_dryrun`, or `helm_dryrun` — validate before committing
 4. Only commit when all checks pass
 
 ### Safety
@@ -116,7 +118,7 @@ The server **never mutates your kubeconfig**. Context is held in memory and pass
 
 ```bash
 pip install -e ".[dev]"
-make test    # 83 tests, 100% coverage
+make test    # 126 tests, 100% coverage
 make lint    # flake8
 ```
 

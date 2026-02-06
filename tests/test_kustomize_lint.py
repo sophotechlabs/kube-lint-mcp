@@ -243,3 +243,19 @@ def test_validate_kustomization_cleanup_oserror_ignored(mock_run, tmp_path):
 
     assert result.client_passed is True
     assert result.server_passed is True
+
+
+@mock.patch("subprocess.run")
+def test_validate_kustomization_malformed_yaml(mock_run, tmp_path):
+    (tmp_path / "kustomization.yaml").write_text("resources: []")
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="{{{bad yaml", stderr=""
+        ),
+    ]
+
+    result = kustomize_lint.validate_kustomization(str(tmp_path))
+
+    assert result.build_passed is True
+    assert result.client_passed is False
+    assert "Failed to parse rendered YAML" in result.build_error

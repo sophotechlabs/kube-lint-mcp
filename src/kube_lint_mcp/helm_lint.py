@@ -7,6 +7,8 @@ import yaml
 from pathlib import Path
 from dataclasses import dataclass
 
+from kube_lint_mcp.dryrun import kubectl_dry_run
+
 
 @dataclass
 class HelmValidationResult:
@@ -62,9 +64,6 @@ def validate_helm_chart(
     Returns:
         HelmValidationResult with validation status
     """
-    warnings = []
-    ctx_args = ["--context", context] if context else []
-
     if not is_helm_chart(chart_path):
         return HelmValidationResult(
             chart_path=chart_path,
@@ -112,8 +111,19 @@ def validate_helm_chart(
             )
 
         # Count resources in rendered output
-        rendered_manifests = list(yaml.safe_load_all(render_result.stdout))
-        resource_count = len([m for m in rendered_manifests if m])
+        try:
+            rendered_manifests = list(yaml.safe_load_all(render_result.stdout))
+            resource_count = len([m for m in rendered_manifests if m])
+        except yaml.YAMLError as e:
+            return HelmValidationResult(
+                chart_path=chart_path,
+                lint_passed=lint_passed,
+                render_passed=True,
+                client_passed=False,
+                server_passed=False,
+                lint_error=lint_error,
+                render_error=f"Failed to parse rendered YAML: {e}",
+            )
 
         # Step 3: Validate rendered manifests with kubectl
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -121,56 +131,19 @@ def validate_helm_chart(
             temp_file = f.name
 
         try:
-            # Client dry-run
-            client_result = subprocess.run(
-                ["kubectl", *ctx_args, "apply", "--dry-run=client", "-f", temp_file],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            client_passed = client_result.returncode == 0
-            client_error = client_result.stderr.strip() if not client_passed else None
-
-            if not client_passed:
-                return HelmValidationResult(
-                    chart_path=chart_path,
-                    lint_passed=lint_passed,
-                    render_passed=render_passed,
-                    client_passed=False,
-                    server_passed=False,
-                    lint_error=lint_error,
-                    client_error=client_error,
-                    resource_count=resource_count,
-                )
-
-            # Server dry-run
-            server_result = subprocess.run(
-                ["kubectl", *ctx_args, "apply", "--dry-run=server", "-f", temp_file],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            server_passed = server_result.returncode == 0
-            server_error = server_result.stderr.strip() if not server_passed else None
-
-            # Check for deprecation warnings
-            output = server_result.stdout + server_result.stderr
-            for line in output.split("\n"):
-                if "deprecated" in line.lower():
-                    warnings.append(line.strip())
-
+            dr = kubectl_dry_run(temp_file, context=context)
             return HelmValidationResult(
                 chart_path=chart_path,
                 lint_passed=lint_passed,
                 render_passed=render_passed,
-                client_passed=client_passed,
-                server_passed=server_passed,
+                client_passed=dr.client_passed,
+                server_passed=dr.server_passed,
                 lint_error=lint_error,
-                server_error=server_error,
-                warnings=warnings if warnings else None,
+                client_error=dr.client_error,
+                server_error=dr.server_error,
+                warnings=dr.warnings,
                 resource_count=resource_count,
             )
-
         finally:
             try:
                 os.unlink(temp_file)
