@@ -3,6 +3,7 @@
 [![CI](https://github.com/sophotechlabs/kube-lint-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/sophotechlabs/kube-lint-mcp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sophotechlabs/kube-lint-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/sophotechlabs/kube-lint-mcp)
 [![PyPI](https://img.shields.io/pypi/v/kube-lint-mcp.svg)](https://pypi.org/project/kube-lint-mcp/)
+[![Docker](https://ghcr-badge.egpl.dev/sophotechlabs/kube-lint-mcp/latest_tag?trim=major&label=docker)](https://github.com/sophotechlabs/kube-lint-mcp/pkgs/container/kube-lint-mcp)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io)
