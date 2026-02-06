@@ -1,3 +1,4 @@
+import json
 import subprocess
 from unittest import mock
 
@@ -21,6 +22,7 @@ async def test_list_tools_returns_all_tools():
         "flux_status",
         "kustomize_dryrun",
         "helm_dryrun",
+        "kubeconform_validate",
     }
 
 
@@ -928,3 +930,155 @@ def test_normalize_path_resolves_relative():
     result = server._normalize_path("./manifests")
     assert result.startswith("/")
     assert "/." not in result
+
+
+# kubeconform_validate integration tests
+
+
+def _kubeconform_resource(
+    status="statusValid", kind="Deployment", name="my-app",
+    version="apps/v1", filename="deploy.yaml", msg="",
+):
+    return json.dumps({
+        "filename": filename, "kind": kind, "name": name,
+        "version": version, "status": status, "msg": msg,
+    })
+
+
+@pytest.mark.asyncio
+async def test_kubeconform_missing_path():
+    result = await server.call_tool("kubeconform_validate", {})
+
+    assert "path" in result[0].text.lower()
+    assert "required" in result[0].text.lower()
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_works_without_context(mock_run):
+    """Key differentiator: kubeconform does NOT require select_kube_context."""
+    server._selected_context = None
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr="",
+    )
+
+    result = await server.call_tool("kubeconform_validate", {"path": "/tmp/test"})
+
+    assert "Error: No context selected" not in result[0].text
+    assert "Kubeconform Schema Validation" in result[0].text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_all_valid(mock_run):
+    stdout = "\n".join([
+        _kubeconform_resource(),
+        _kubeconform_resource(kind="Service", name="my-svc", version="v1"),
+    ])
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=stdout, stderr="",
+    )
+
+    result = await server.call_tool("kubeconform_validate", {"path": "/tmp/test"})
+    text = result[0].text
+
+    assert "PASS" in text
+    assert "Safe to commit" in text
+    assert "2 valid, 0 invalid" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_has_invalid(mock_run):
+    stdout = "\n".join([
+        _kubeconform_resource(),
+        _kubeconform_resource(
+            status="statusInvalid", name="bad",
+            msg="spec.replicas: Invalid type. Expected: integer, given: string",
+        ),
+    ])
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout=stdout, stderr="",
+    )
+
+    result = await server.call_tool("kubeconform_validate", {"path": "/tmp/test"})
+    text = result[0].text
+
+    assert "INVALID" in text
+    assert "DO NOT COMMIT" in text
+    assert "spec.replicas" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_shows_path(mock_run):
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr="",
+    )
+
+    result = await server.call_tool(
+        "kubeconform_validate", {"path": "/my/manifests"},
+    )
+    text = result[0].text
+
+    assert "Path: /my/manifests" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_shows_kubernetes_version(mock_run):
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr="",
+    )
+
+    result = await server.call_tool(
+        "kubeconform_validate",
+        {"path": "/tmp/test", "kubernetes_version": "1.29.0"},
+    )
+    text = result[0].text
+
+    assert "Kubernetes version: 1.29.0" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_shows_strict_mode(mock_run):
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr="",
+    )
+
+    result = await server.call_tool(
+        "kubeconform_validate",
+        {"path": "/tmp/test", "strict": True},
+    )
+    text = result[0].text
+
+    assert "Strict mode: enabled" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_not_found(mock_run):
+    mock_run.side_effect = FileNotFoundError("kubeconform")
+
+    result = await server.call_tool(
+        "kubeconform_validate", {"path": "/tmp/test"},
+    )
+    text = result[0].text
+
+    assert "kubeconform not found" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_no_resources(mock_run):
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr="",
+    )
+
+    result = await server.call_tool(
+        "kubeconform_validate", {"path": "/tmp/test"},
+    )
+    text = result[0].text
+
+    assert "No resources found" in text

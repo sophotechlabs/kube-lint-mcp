@@ -17,6 +17,7 @@ except ImportError:  # pragma: no cover
 
 from kube_lint_mcp import flux_lint
 from kube_lint_mcp import helm_lint
+from kube_lint_mcp import kubeconform_lint
 from kube_lint_mcp import kustomize_lint
 
 # Create MCP server instance
@@ -201,6 +202,39 @@ async def list_tools() -> list[Tool]:
                     },
                 },
                 "required": ["chart_path"],
+            },
+        ),
+        Tool(
+            name="kubeconform_validate",
+            description=(
+                "Validate Kubernetes manifests against JSON schemas offline"
+                " using kubeconform. Catches invalid fields, type mismatches,"
+                " and missing required fields without a live cluster."
+                " Does NOT require select_kube_context."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to YAML file or directory containing manifests (required)",
+                    },
+                    "kubernetes_version": {
+                        "type": "string",
+                        "description": (
+                            "Kubernetes version for schema lookup"
+                            " (e.g. '1.29.0'). Default: 'master'"
+                        ),
+                    },
+                    "strict": {
+                        "type": "boolean",
+                        "description": (
+                            "Reject additional properties not in the schema"
+                            " (default: false)"
+                        ),
+                    },
+                },
+                "required": ["path"],
             },
         ),
     ]
@@ -505,6 +539,72 @@ def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     return _text("\n".join(lines))
 
 
+def _handle_kubeconform_validate(arguments: dict[str, Any]) -> list[TextContent]:
+    path = arguments.get("path")
+    if not path:
+        return _text("Error: 'path' parameter is required")
+    path = _normalize_path(path)
+
+    kubernetes_version = arguments.get("kubernetes_version", "master")
+    strict = arguments.get("strict", False)
+
+    result = kubeconform_lint.validate_manifests(
+        path=path,
+        kubernetes_version=kubernetes_version,
+        strict=strict,
+    )
+
+    if result.error:
+        return _text(f"Error: {result.error}")
+
+    lines = [
+        "Kubeconform Schema Validation",
+        f"Path: {path}",
+    ]
+    if kubernetes_version != "master":
+        lines.append(f"Kubernetes version: {kubernetes_version}")
+    if strict:
+        lines.append("Strict mode: enabled")
+    lines.extend(["=" * 50, ""])
+
+    if not result.resources:
+        lines.append("No resources found to validate.")
+    else:
+        for r in result.resources:
+            label = f"{r.kind}/{r.name}" if r.name else r.kind
+            api = f" ({r.version})" if r.version else ""
+
+            if r.status == "statusValid":
+                lines.append(f"  {label}{api}: PASS")
+            elif r.status == "statusInvalid":
+                lines.append(f"  {label}{api}: INVALID")
+                if r.msg:
+                    for msg_line in r.msg.splitlines():
+                        lines.append(f"    {msg_line}")
+            elif r.status == "statusError":
+                lines.append(f"  {label}{api}: ERROR")
+                if r.msg:
+                    for msg_line in r.msg.splitlines():
+                        lines.append(f"    {msg_line}")
+            elif r.status == "statusSkipped":
+                lines.append(f"  {label}{api}: SKIPPED")
+
+    lines.append("")
+    lines.append("=" * 50)
+    lines.append(
+        f"Summary: {result.valid} valid, {result.invalid} invalid,"
+        f" {result.errors} errors, {result.skipped} skipped"
+    )
+    lines.append("")
+
+    if result.passed:
+        lines.append("All validations passed. Safe to commit.")
+    else:
+        lines.append("DO NOT COMMIT - Fix schema errors first!")
+
+    return _text("\n".join(lines))
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table + call_tool
 # ---------------------------------------------------------------------------
@@ -517,6 +617,7 @@ _HANDLERS: dict[str, Any] = {
     "flux_status": _handle_flux_status,
     "kustomize_dryrun": _handle_kustomize_dryrun,
     "helm_dryrun": _handle_helm_dryrun,
+    "kubeconform_validate": _handle_kubeconform_validate,
 }
 
 
