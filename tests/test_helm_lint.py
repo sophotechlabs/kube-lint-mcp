@@ -201,24 +201,6 @@ def test_validate_helm_chart_timeout(mock_run, tmp_path):
 # validate_helm_chart edge cases for full coverage
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_cleanup_oserror_ignored(mock_run, tmp_path):
-    (tmp_path / "Chart.yaml").write_text("name: test")
-    rendered = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: t\n"
-    mock_run.side_effect = [
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
-        subprocess.CompletedProcess(args=[], returncode=0, stdout=rendered, stderr=""),
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
-    ]
-
-    with mock.patch("os.unlink", side_effect=OSError("permission denied")):
-        result = helm_lint.validate_helm_chart(str(tmp_path))
-
-    assert result.client_passed is True
-    assert result.server_passed is True
-
-
 @mock.patch("subprocess.run", side_effect=FileNotFoundError("helm"))
 def test_validate_helm_chart_helm_not_found(mock_run, tmp_path):
     (tmp_path / "Chart.yaml").write_text("name: test")

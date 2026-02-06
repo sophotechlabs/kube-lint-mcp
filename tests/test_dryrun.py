@@ -182,5 +182,29 @@ def test_kubectl_dry_run_no_context(mock_run):
         assert "--context" not in cmd
 
 
+@mock.patch("subprocess.run")
+def test_kubectl_dry_run_stdin_data(mock_run):
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+    ]
+
+    yaml_data = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n"
+    result = kubectl_dry_run(stdin_data=yaml_data)
+
+    assert result.client_passed is True
+    assert result.server_passed is True
+    # Both calls should use -f - for stdin
+    for call in mock_run.call_args_list:
+        cmd = call[0][0]
+        assert "-f" in cmd
+        assert "-" in cmd
+        assert call[1]["input"] == yaml_data
+
+
 def test_kubectl_timeout_constant():
     assert KUBECTL_TIMEOUT == 60

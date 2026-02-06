@@ -33,29 +33,33 @@ def parse_deprecation_warnings(output: str) -> list[str]:
 
 
 def kubectl_dry_run(
-    file_path: str,
+    file_path: str | None = None,
     context: str | None = None,
     timeout: int = KUBECTL_TIMEOUT,
+    stdin_data: str | None = None,
 ) -> DryRunResult:
-    """Run client + server kubectl dry-run on a manifest file.
+    """Run client + server kubectl dry-run on a manifest file or stdin data.
 
     Args:
-        file_path: Path to the YAML manifest file
+        file_path: Path to the YAML manifest file (used when stdin_data is None)
         context: Optional kubectl context (passed via --context flag)
         timeout: Timeout in seconds for each subprocess call
+        stdin_data: Optional YAML string to pipe via stdin instead of reading a file
 
     Returns:
         DryRunResult with client/server pass/fail and any deprecation warnings
     """
     ctx_args = build_ctx_args(context)
+    source_args = ["-f", "-"] if stdin_data is not None else ["-f", file_path]
 
     try:
         # Client dry-run
         client_result = subprocess.run(
-            ["kubectl", *ctx_args, "apply", "--dry-run=client", "-f", file_path],
+            ["kubectl", *ctx_args, "apply", "--dry-run=client", *source_args],
             capture_output=True,
             text=True,
             timeout=timeout,
+            input=stdin_data,
         )
         client_passed = client_result.returncode == 0
         client_error = client_result.stderr.strip() if not client_passed else None
@@ -69,10 +73,11 @@ def kubectl_dry_run(
 
         # Server dry-run
         server_result = subprocess.run(
-            ["kubectl", *ctx_args, "apply", "--dry-run=server", "-f", file_path],
+            ["kubectl", *ctx_args, "apply", "--dry-run=server", *source_args],
             capture_output=True,
             text=True,
             timeout=timeout,
+            input=stdin_data,
         )
         server_passed = server_result.returncode == 0
         server_error = server_result.stderr.strip() if not server_passed else None

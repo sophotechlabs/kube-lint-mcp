@@ -92,10 +92,11 @@ def test_validate_kustomization_passes_context_flag(mock_run, tmp_path):
 
     kustomize_lint.validate_kustomization(str(tmp_path), context="prod-cluster")
 
-    # client dry-run call should include --context
+    # client dry-run call should include --context and use stdin
     client_args = mock_run.call_args_list[1][0][0]
     assert "--context" in client_args
     assert "prod-cluster" in client_args
+    assert "-f" in client_args and "-" in client_args
 
 
 @mock.patch("subprocess.run")
@@ -227,22 +228,6 @@ def test_validate_kustomization_kubectl_not_found(mock_run, tmp_path):
 
     assert result.build_passed is False
     assert "kubectl not found" in result.build_error
-
-
-@mock.patch("subprocess.run")
-def test_validate_kustomization_cleanup_oserror_ignored(mock_run, tmp_path):
-    (tmp_path / "kustomization.yaml").write_text("resources: []")
-    mock_run.side_effect = [
-        subprocess.CompletedProcess(args=[], returncode=0, stdout=RENDERED_YAML, stderr=""),
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
-    ]
-
-    with mock.patch("os.unlink", side_effect=OSError("permission denied")):
-        result = kustomize_lint.validate_kustomization(str(tmp_path))
-
-    assert result.client_passed is True
-    assert result.server_passed is True
 
 
 @mock.patch("subprocess.run")

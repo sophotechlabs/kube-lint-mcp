@@ -1,8 +1,6 @@
 """Kustomize overlay validation utilities."""
 
 import subprocess
-import os
-import tempfile
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
@@ -95,28 +93,18 @@ def validate_kustomization(
                 build_error=f"Failed to parse rendered YAML: {e}",
             )
 
-        # Step 2: Validate rendered manifests with kubectl dry-run
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(build_result.stdout)
-            temp_file = f.name
-
-        try:
-            dr = kubectl_dry_run(temp_file, context=context)
-            return KustomizeValidationResult(
-                path=path,
-                build_passed=True,
-                client_passed=dr.client_passed,
-                server_passed=dr.server_passed,
-                client_error=dr.client_error,
-                server_error=dr.server_error,
-                warnings=dr.warnings,
-                resource_count=resource_count,
-            )
-        finally:
-            try:
-                os.unlink(temp_file)
-            except OSError:
-                pass
+        # Step 2: Validate rendered manifests with kubectl dry-run via stdin
+        dr = kubectl_dry_run(context=context, stdin_data=build_result.stdout)
+        return KustomizeValidationResult(
+            path=path,
+            build_passed=True,
+            client_passed=dr.client_passed,
+            server_passed=dr.server_passed,
+            client_error=dr.client_error,
+            server_error=dr.server_error,
+            warnings=dr.warnings,
+            resource_count=resource_count,
+        )
 
     except subprocess.TimeoutExpired:
         return KustomizeValidationResult(
