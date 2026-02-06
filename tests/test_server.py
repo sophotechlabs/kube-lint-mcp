@@ -19,6 +19,7 @@ async def test_list_tools_returns_all_tools():
         "flux_dryrun",
         "flux_check",
         "flux_status",
+        "kustomize_dryrun",
         "helm_dryrun",
     }
 
@@ -106,6 +107,13 @@ async def test_flux_status_requires_context():
 
 
 @pytest.mark.asyncio
+async def test_kustomize_dryrun_requires_context():
+    result = await server.call_tool("kustomize_dryrun", {"path": "/some/path"})
+
+    assert "select_kube_context" in result[0].text
+
+
+@pytest.mark.asyncio
 async def test_helm_dryrun_requires_context():
     result = await server.call_tool("helm_dryrun", {"chart_path": "/some"})
 
@@ -123,6 +131,25 @@ async def test_flux_dryrun_missing_path():
 
     assert "path" in result[0].text.lower()
     assert "required" in result[0].text.lower()
+
+
+@pytest.mark.asyncio
+async def test_kustomize_dryrun_missing_path():
+    server._selected_context = "test-ctx"
+
+    result = await server.call_tool("kustomize_dryrun", {})
+
+    assert "path" in result[0].text.lower()
+    assert "required" in result[0].text.lower()
+
+
+@pytest.mark.asyncio
+async def test_kustomize_dryrun_not_a_kustomization(tmp_path):
+    server._selected_context = "test-ctx"
+
+    result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
+
+    assert "not a Kustomize overlay" in result[0].text
 
 
 @pytest.mark.asyncio
@@ -467,6 +494,180 @@ async def test_flux_status_failure(mock_run):
 
     assert "Error getting Flux status" in text
     assert "Context: test-ctx" in text
+
+
+# kustomize_dryrun integration tests
+
+
+KUSTOMIZE_RENDERED_YAML = """\
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: production
+data:
+  key: value
+"""
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kustomize_dryrun_all_pass(mock_run, tmp_path):
+    server._selected_context = "test-ctx"
+    (tmp_path / "kustomization.yaml").write_text("apiVersion: kustomize.config.k8s.io/v1beta1")
+
+    mock_run.side_effect = [
+        # kubectl kustomize
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=KUSTOMIZE_RENDERED_YAML, stderr=""
+        ),
+        # kubectl client dry-run
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+        # kubectl server dry-run
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+    ]
+
+    result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "Kustomize build: PASS (2 resources)" in text
+    assert "Client dry-run: PASS" in text
+    assert "Server dry-run: PASS" in text
+    assert "Safe to commit" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kustomize_dryrun_build_fail(mock_run, tmp_path):
+    server._selected_context = "test-ctx"
+    (tmp_path / "kustomization.yaml").write_text("resources: [missing.yaml]")
+
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="Error: missing.yaml not found"
+        ),
+    ]
+
+    result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "Kustomize build: FAIL" in text
+    assert "missing.yaml" in text
+    assert "DO NOT COMMIT" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kustomize_dryrun_client_fail(mock_run, tmp_path):
+    server._selected_context = "test-ctx"
+    (tmp_path / "kustomization.yaml").write_text("resources: []")
+
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=KUSTOMIZE_RENDERED_YAML, stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="error: invalid manifest"
+        ),
+    ]
+
+    result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "Kustomize build: PASS" in text
+    assert "Client dry-run: FAIL" in text
+    assert "invalid manifest" in text
+    assert "DO NOT COMMIT" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kustomize_dryrun_server_fail(mock_run, tmp_path):
+    server._selected_context = "test-ctx"
+    (tmp_path / "kustomization.yaml").write_text("resources: []")
+
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=KUSTOMIZE_RENDERED_YAML, stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="error: forbidden"
+        ),
+    ]
+
+    result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "Server dry-run: FAIL" in text
+    assert "forbidden" in text
+    assert "DO NOT COMMIT" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kustomize_dryrun_server_pass_with_warnings(mock_run, tmp_path):
+    server._selected_context = "test-ctx"
+    (tmp_path / "kustomization.yaml").write_text("resources: []")
+
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=KUSTOMIZE_RENDERED_YAML, stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="configured\n",
+            stderr="Warning: policy/v1beta1 PodSecurityPolicy is deprecated",
+        ),
+    ]
+
+    result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "PASS (with warnings)" in text
+    assert "Warning:" in text
+    assert "deprecated" in text.lower()
+    assert "Safe to commit" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kustomize_dryrun_shows_context_and_path(mock_run, tmp_path):
+    server._selected_context = "prod-cluster"
+    (tmp_path / "kustomization.yaml").write_text("resources: []")
+
+    mock_run.side_effect = [
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=KUSTOMIZE_RENDERED_YAML, stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+        subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="configured\n", stderr=""
+        ),
+    ]
+
+    result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "Context: prod-cluster" in text
+    assert f"Path: {tmp_path}" in text
 
 
 # helm_dryrun integration tests

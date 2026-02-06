@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover
 
 from kube_lint_mcp import flux_lint
 from kube_lint_mcp import helm_lint
+from kube_lint_mcp import kustomize_lint
 
 # Create MCP server instance
 app = Server("kube-lint-mcp")
@@ -136,6 +137,29 @@ async def list_tools() -> list[Tool]:
                 " Requires select_kube_context to be called first."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        Tool(
+            name="kustomize_dryrun",
+            description=(
+                "Validate Kustomize overlay by building and running kubectl dry-run"
+                " (client + server)."
+                " ALWAYS use this before committing Kustomize overlay changes"
+                " to prevent deployment failures."
+                " Requires select_kube_context to be called first."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Path to directory containing kustomization.yaml"
+                            " or path to kustomization.yaml file (required)"
+                        ),
+                    }
+                },
+                "required": ["path"],
+            },
         ),
         Tool(
             name="helm_dryrun",
@@ -312,6 +336,70 @@ def _handle_flux_status(arguments: dict[str, Any]) -> list[TextContent]:
         return _text(f"Context: {_selected_context}\nError getting Flux status:\n\n{output}")
 
 
+def _handle_kustomize_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
+    err = _require_context()
+    if err:
+        return [err]
+
+    path = arguments.get("path")
+    if not path:
+        return _text("Error: 'path' parameter is required")
+
+    if not kustomize_lint.is_kustomization(path):
+        return _text(
+            f"Error: Path '{path}' is not a Kustomize overlay"
+            " (missing kustomization.yaml)"
+        )
+
+    result = kustomize_lint.validate_kustomization(
+        path=path, context=_selected_context,
+    )
+
+    lines = [
+        "Kustomize Dry-Run Validation",
+        f"Context: {_selected_context}",
+        f"Path: {path}",
+        "=" * 50,
+        "",
+    ]
+
+    passed = 0
+    failed = 0
+
+    if result.build_passed:
+        lines.append(f"Kustomize build: PASS ({result.resource_count} resources)")
+        passed += 1
+    else:
+        lines.extend(_format_step("Kustomize build", False, result.build_error))
+        failed += 1
+    lines.append("")
+
+    lines.extend(
+        _format_step("Client dry-run", result.client_passed, result.client_error)
+    )
+    if result.client_passed:
+        passed += 1
+    else:
+        failed += 1
+    lines.append("")
+
+    lines.extend(
+        _format_step(
+            "Server dry-run", result.server_passed,
+            result.server_error, result.warnings,
+        )
+    )
+    if result.server_passed:
+        passed += 1
+    else:
+        failed += 1
+
+    lines.append("")
+    lines.extend(_format_summary(passed, failed))
+
+    return _text("\n".join(lines))
+
+
 def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     err = _require_context()
     if err:
@@ -408,6 +496,7 @@ _HANDLERS: dict[str, Any] = {
     "flux_dryrun": _handle_flux_dryrun,
     "flux_check": _handle_flux_check,
     "flux_status": _handle_flux_status,
+    "kustomize_dryrun": _handle_kustomize_dryrun,
     "helm_dryrun": _handle_helm_dryrun,
 }
 
