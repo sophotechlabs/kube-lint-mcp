@@ -47,21 +47,25 @@ No flags, no CLI args — the AI agent picks the right tool automatically.
 
 ## Installation
 
+### pip (requires CLI tools installed separately)
+
 ```bash
 pip install kube-lint-mcp
 ```
 
-Or from source:
+### Docker (batteries included)
+
+The Docker image ships with kubectl, helm, flux, and kubeconform — no local installs needed.
 
 ```bash
-git clone https://github.com/sophotechlabs/kube-lint-mcp.git
-cd kube-lint-mcp
-pip install .
+docker pull ghcr.io/sophotechlabs/kube-lint-mcp:latest
 ```
+
+> **Note**: If your kubeconfig uses external auth plugins (e.g. `gke-gcloud-auth-plugin`, `aws-iam-authenticator`), those binaries are not included in the image. Use the pip install method for those clusters, or embed tokens directly in your kubeconfig.
 
 ## Configuration
 
-### Claude Code
+### Claude Code (pip)
 
 Add to your project's `.mcp.json`:
 
@@ -75,6 +79,26 @@ Add to your project's `.mcp.json`:
   }
 }
 ```
+
+### Claude Code (Docker)
+
+```json
+{
+  "mcpServers": {
+    "kube-lint": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "${HOME}:${HOME}:ro",
+        "-e", "KUBECONFIG=${HOME}/.kube/config",
+        "ghcr.io/sophotechlabs/kube-lint-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+The `$HOME:$HOME:ro` mount preserves absolute paths that MCP clients send to the server. The read-only flag ensures the container cannot modify your files.
 
 ### Claude Desktop
 
