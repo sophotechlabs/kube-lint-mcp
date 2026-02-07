@@ -63,8 +63,7 @@ pip install kube-lint-mcp
 The Docker image ships with kubectl, helm, flux, and kubeconform — no local installs needed.
 
 ```bash
-docker pull sophotechlabs/kube-lint-mcp:latest
-# or: docker pull ghcr.io/sophotechlabs/kube-lint-mcp:latest
+docker pull ghcr.io/sophotechlabs/kube-lint-mcp:latest
 ```
 
 > **Note**: If your kubeconfig uses external auth plugins (e.g. `gke-gcloud-auth-plugin`, `aws-iam-authenticator`), those binaries are not included in the image. Use the pip install method for those clusters, or embed tokens directly in your kubeconfig.
@@ -123,34 +122,168 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `select_kube_context` | Pick a cluster context (held in memory, no kubeconfig mutation). **Call first.** |
-| `list_kube_contexts` | Show available kubectl contexts and which is selected |
-| `flux_dryrun` | Validate FluxCD YAML with client + server dry-run |
-| `kustomize_dryrun` | Build and dry-run a Kustomize overlay end-to-end |
-| `helm_dryrun` | Lint, render, and dry-run a Helm chart end-to-end |
-| `flux_check` | Verify Flux installation health |
-| `flux_status` | Show Flux reconciliation status across namespaces |
-| `kubeconform_validate` | Offline schema validation — no cluster needed |
+### select_kube_context
 
-### Workflow
+Pick a cluster context. Stored in memory only — **never mutates your kubeconfig**. Must be called before any validation tool.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `context` | string | yes | Name of the kubectl context to use |
+
+### list_kube_contexts
+
+Show available kubectl contexts with markers for the current (kubeconfig default) and selected (in-memory) context. No parameters.
+
+### flux_dryrun
+
+Validate FluxCD YAML files with both client-side and server-side kubectl dry-run. Catches schema errors, missing CRDs, namespace issues, and deprecated API versions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | yes | Path to YAML file or directory containing manifests |
+
+```
+You: "Validate the flux manifests in k8s/infrastructure/"
+```
+
+### kustomize_dryrun
+
+Build a Kustomize overlay and validate the rendered output with kubectl dry-run. Runs the full pipeline: `kustomize build` → client dry-run → server dry-run.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | yes | Path to directory containing kustomization.yaml |
+
+```
+You: "Dry-run the staging kustomize overlay in k8s/overlays/staging/"
+```
+
+### helm_dryrun
+
+End-to-end Helm chart validation: `helm lint` → `helm template` → client dry-run → server dry-run. Catches chart errors, template rendering issues, and invalid rendered manifests.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `chart_path` | string | yes | Path to Helm chart directory |
+| `values_file` | string | no | Path to custom values file |
+| `namespace` | string | no | Namespace for rendering |
+| `release_name` | string | no | Release name for helm template (default: `release-name`) |
+
+```
+You: "Validate the nginx helm chart in charts/nginx/ with staging values"
+```
+
+### flux_check
+
+Verify Flux installation health by running `flux check`. Reports controller status and version compatibility. No parameters.
+
+### flux_status
+
+Show Flux reconciliation status for all resources across all namespaces (`flux get all -A`). Useful for checking if resources are synced or stuck. No parameters.
+
+### kubeconform_validate
+
+Offline schema validation against Kubernetes JSON schemas. **Does not require a cluster connection.** Catches invalid fields, type mismatches, and missing required fields.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | yes | Path to YAML file or directory |
+| `kubernetes_version` | string | no | Target K8s version for schema lookup (e.g. `1.29.0`). Default: `master` |
+| `strict` | boolean | no | Reject fields not in the schema (default: `false`) |
+
+```
+You: "Validate all manifests in k8s/ against Kubernetes 1.29 with strict mode"
+```
+
+## Typical workflow
 
 1. `list_kube_contexts` — see available clusters
 2. `select_kube_context` — target a cluster (in-memory only, never mutates kubeconfig)
 3. `flux_dryrun`, `kustomize_dryrun`, or `helm_dryrun` — validate before committing
 4. Only commit when all checks pass
 
-### Safety
+For offline validation without a cluster, use `kubeconform_validate` directly — no context selection needed.
+
+## Safety
 
 The server **never mutates your kubeconfig**. Context is held in memory and passed via `--context` flag on every subprocess call. This is a deliberate safety choice for agentic use — the AI cannot accidentally switch your global kubectl context.
+
+All validation tools are **read-only** — they use `kubectl apply --dry-run` which simulates without applying. No resources are created, modified, or deleted.
+
+## Configuration reference
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KUBE_LINT_KUBECTL_TIMEOUT` | `60` | Timeout in seconds for kubectl dry-run operations |
+| `KUBE_LINT_HELM_TIMEOUT` | `60` | Timeout for helm lint and template operations |
+| `KUBE_LINT_FLUX_TIMEOUT` | `60` | Timeout for flux check and status operations |
+| `KUBE_LINT_KUBECONFORM_TIMEOUT` | `120` | Timeout for kubeconform validation |
+
+Set these in your MCP server config:
+
+```json
+{
+  "mcpServers": {
+    "kube-lint": {
+      "command": "python",
+      "args": ["-m", "kube_lint_mcp"],
+      "env": {
+        "KUBE_LINT_KUBECTL_TIMEOUT": "120"
+      }
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+### "kubectl not found" or "helm not found"
+
+The pip install only installs the Python package. You need kubectl, helm, and flux installed separately and on your `PATH`. The Docker image includes all tools — use it if you don't want to manage CLI installations.
+
+### Docker: "unable to load kubeconfig" or auth errors
+
+Make sure your kubeconfig is accessible inside the container. The `$HOME:$HOME:ro` mount maps your home directory read-only. If your kubeconfig references files outside `$HOME` (e.g. `/etc/kubernetes/`), mount those paths too.
+
+If your kubeconfig uses **auth plugins** (GKE, EKS, AKS), the plugin binaries aren't in the Docker image. Either:
+- Use the pip install method instead
+- Or generate a static token/certificate kubeconfig for the Docker image
+
+### "context not selected" errors
+
+Always call `select_kube_context` (or let the agent call `list_kube_contexts` first) before running any validation tool. The server does not read a default context from kubeconfig — this is intentional for safety.
+
+Exception: `kubeconform_validate` works offline and does not need a context.
+
+### Timeouts on large charts or slow clusters
+
+Increase the relevant timeout via environment variables. For a Helm chart with many templates against a slow API server:
+
+```json
+{
+  "env": {
+    "KUBE_LINT_KUBECTL_TIMEOUT": "120",
+    "KUBE_LINT_HELM_TIMEOUT": "120"
+  }
+}
+```
+
+### Server dry-run fails but client dry-run passes
+
+This is expected. Client dry-run validates syntax and schema locally. Server dry-run sends the manifest to the API server which checks additional constraints: namespace existence, CRD availability, admission webhooks, resource quotas. Fix the server-side issue before committing.
+
+### kubeconform reports "skipped" resources
+
+Custom Resource Definitions (CRDs) don't have upstream schemas. kubeconform skips resources it can't validate. This is normal for FluxCD, cert-manager, and other CRD-heavy stacks.
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
 make test    # 100% coverage
-make lint    # flake8
+make lint    # ruff
 ```
 
 ## Contributing
