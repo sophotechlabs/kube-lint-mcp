@@ -39,6 +39,9 @@ jobs:
       - name: Bump version in pyproject.toml
         run: sed -i 's/^version = ".*"/version = "${{ inputs.version }}\"/' pyproject.toml
 
+      - name: Bump version in server.json
+        run: sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
+
       - name: Create release PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,7 +50,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add pyproject.toml
+          git add pyproject.toml server.json
           git commit -m "release: v${{ inputs.version }}"
           git push -u origin "$BRANCH"
           gh pr create \

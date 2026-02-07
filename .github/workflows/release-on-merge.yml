@@ -90,6 +90,12 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
 
+      - name: Publish to MCP Registry
+        run: |
+          curl -fsSL https://registry.modelcontextprotocol.io/cli/install.sh | bash
+          mcp-publisher publish --token "${{ secrets.GITHUB_TOKEN }}"
+        continue-on-error: true
+
   docker:
     needs: create-release
     runs-on: ubuntu-latest

@@ -10,6 +10,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io)
 
+mcp-name: io.github.archy-rock3t-cloud/kube-lint-mcp
+
 MCP server that validates Kubernetes manifests and Helm charts with kubectl dry-run before you commit — preventing deployment and GitOps reconciliation failures.
 
 Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Claude Desktop](https://claude.ai/download), and any [MCP-compatible](https://modelcontextprotocol.io) client.
