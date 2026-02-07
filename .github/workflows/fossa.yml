@@ -6,14 +6,16 @@ on:
   pull_request:
     branches: [main]
 
+permissions: read-all
+
 jobs:
   license-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Run FOSSA Analyze
-        uses: fossas/fossa-action@main
+        uses: fossas/fossa-action@c414b9ad82eaad041e47a7cf62a4f02411f427a0 # main
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
 
@@ -21,10 +23,10 @@ jobs:
     needs: license-scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Run FOSSA Test
-        uses: fossas/fossa-action@main
+        uses: fossas/fossa-action@c414b9ad82eaad041e47a7cf62a4f02411f427a0 # main
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
           run-tests: true

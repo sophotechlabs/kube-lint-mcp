@@ -21,3 +21,4 @@
 #         uses: gitleaks/gitleaks-action@v2
 #         env:
 #           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+# TODO: enable gitleaks when there is a new license

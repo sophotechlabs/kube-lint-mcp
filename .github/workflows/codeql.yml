@@ -8,6 +8,8 @@ on:
   schedule:
     - cron: "0 6 * * 1"
 
+permissions: read-all
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -15,10 +17,10 @@ jobs:
       security-events: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/init@59c2c1ca13dff455ab22ad8157d6ab220447da29 # v4
         with:
           languages: python
 
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/analyze@59c2c1ca13dff455ab22ad8157d6ab220447da29 # v4
