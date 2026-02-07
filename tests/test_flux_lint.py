@@ -1,5 +1,4 @@
 import subprocess
-from unittest import mock
 
 from kube_lint_mcp import flux_lint
 
@@ -63,8 +62,8 @@ def test_find_yaml_files_nonexistent_path():
 # get_kubectl_contexts tests
 
 
-@mock.patch("subprocess.run")
-def test_get_kubectl_contexts_returns_contexts_and_current(mock_run):
+def test_get_kubectl_contexts_returns_contexts_and_current(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="ctx-a\nctx-b\n", stderr=""
@@ -78,8 +77,8 @@ def test_get_kubectl_contexts_returns_contexts_and_current(mock_run):
     assert current == "ctx-a"
 
 
-@mock.patch("subprocess.run")
-def test_get_kubectl_contexts_no_current(mock_run):
+def test_get_kubectl_contexts_no_current(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout="ctx-a\n", stderr=""),
         subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="error"),
@@ -91,18 +90,20 @@ def test_get_kubectl_contexts_no_current(mock_run):
     assert current is None
 
 
-@mock.patch(
-    "subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=10)
-)
-def test_get_kubectl_contexts_timeout(mock_run):
+def test_get_kubectl_contexts_timeout(mocker):
+    mock_run = mocker.patch(
+        "subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=10)
+    )
+
     contexts, current = flux_lint.get_kubectl_contexts()
 
     assert contexts == []
     assert current is None
 
 
-@mock.patch("subprocess.run", side_effect=FileNotFoundError)
-def test_get_kubectl_contexts_kubectl_not_found(mock_run):
+def test_get_kubectl_contexts_kubectl_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+
     contexts, current = flux_lint.get_kubectl_contexts()
 
     assert contexts == []
@@ -112,8 +113,8 @@ def test_get_kubectl_contexts_kubectl_not_found(mock_run):
 # context_exists tests
 
 
-@mock.patch("subprocess.run")
-def test_context_exists_true(mock_run):
+def test_context_exists_true(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="my-ctx\nother\n", stderr=""
@@ -126,8 +127,8 @@ def test_context_exists_true(mock_run):
     assert flux_lint.context_exists("my-ctx") is True
 
 
-@mock.patch("subprocess.run")
-def test_context_exists_false(mock_run):
+def test_context_exists_false(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="ctx-a\nctx-b\n", stderr=""
@@ -141,8 +142,8 @@ def test_context_exists_false(mock_run):
 # validate_manifest tests
 
 
-@mock.patch("subprocess.run")
-def test_validate_manifest_both_pass(mock_run, tmp_path):
+def test_validate_manifest_both_pass(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     f = tmp_path / "good.yaml"
     f.write_text("apiVersion: v1\nkind: ConfigMap")
     mock_run.side_effect = [
@@ -161,8 +162,8 @@ def test_validate_manifest_both_pass(mock_run, tmp_path):
     assert result.warnings is None
 
 
-@mock.patch("subprocess.run")
-def test_validate_manifest_passes_context_flag(mock_run, tmp_path):
+def test_validate_manifest_passes_context_flag(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     f = tmp_path / "test.yaml"
     f.write_text("apiVersion: v1")
     mock_run.side_effect = [
@@ -177,8 +178,8 @@ def test_validate_manifest_passes_context_flag(mock_run, tmp_path):
     assert "prod-cluster" in first_call_args
 
 
-@mock.patch("subprocess.run")
-def test_validate_manifest_no_context_flag_when_none(mock_run, tmp_path):
+def test_validate_manifest_no_context_flag_when_none(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     f = tmp_path / "test.yaml"
     f.write_text("apiVersion: v1")
     mock_run.side_effect = [
@@ -192,8 +193,8 @@ def test_validate_manifest_no_context_flag_when_none(mock_run, tmp_path):
     assert "--context" not in first_call_args
 
 
-@mock.patch("subprocess.run")
-def test_validate_manifest_client_fail(mock_run, tmp_path):
+def test_validate_manifest_client_fail(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     f = tmp_path / "bad.yaml"
     f.write_text("invalid")
     mock_run.return_value = subprocess.CompletedProcess(
@@ -207,8 +208,8 @@ def test_validate_manifest_client_fail(mock_run, tmp_path):
     assert "invalid manifest" in result.client_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_manifest_server_fail(mock_run, tmp_path):
+def test_validate_manifest_server_fail(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     f = tmp_path / "srvfail.yaml"
     f.write_text("apiVersion: v1")
     mock_run.side_effect = [
@@ -225,8 +226,8 @@ def test_validate_manifest_server_fail(mock_run, tmp_path):
     assert "server rejected" in result.server_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_manifest_captures_deprecation_warnings(mock_run, tmp_path):
+def test_validate_manifest_captures_deprecation_warnings(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     f = tmp_path / "dep.yaml"
     f.write_text("apiVersion: v1")
     mock_run.side_effect = [
@@ -246,11 +247,11 @@ def test_validate_manifest_captures_deprecation_warnings(mock_run, tmp_path):
     assert any("deprecated" in w.lower() for w in result.warnings)
 
 
-@mock.patch(
-    "subprocess.run",
-    side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=30),
-)
-def test_validate_manifest_timeout(mock_run, tmp_path):
+def test_validate_manifest_timeout(mocker, tmp_path):
+    mock_run = mocker.patch(
+        "subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=30),
+    )
     f = tmp_path / "slow.yaml"
     f.write_text("apiVersion: v1")
 
@@ -260,8 +261,8 @@ def test_validate_manifest_timeout(mock_run, tmp_path):
     assert "Timeout" in result.client_error
 
 
-@mock.patch("subprocess.run", side_effect=FileNotFoundError)
-def test_validate_manifest_kubectl_not_found(mock_run, tmp_path):
+def test_validate_manifest_kubectl_not_found(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
     f = tmp_path / "test.yaml"
     f.write_text("apiVersion: v1")
 
@@ -274,8 +275,8 @@ def test_validate_manifest_kubectl_not_found(mock_run, tmp_path):
 # validate_manifests tests
 
 
-@mock.patch("subprocess.run")
-def test_validate_manifests_validates_all_files(mock_run, tmp_path):
+def test_validate_manifests_validates_all_files(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "a.yaml").write_text("a")
     (tmp_path / "b.yaml").write_text("b")
     mock_run.return_value = subprocess.CompletedProcess(
@@ -298,8 +299,8 @@ def test_validate_manifests_empty_for_no_yaml(tmp_path):
 # run_flux_check tests
 
 
-@mock.patch("subprocess.run")
-def test_run_flux_check_success(mock_run):
+def test_run_flux_check_success(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="all checks passed\n", stderr=""
     )
@@ -310,8 +311,8 @@ def test_run_flux_check_success(mock_run):
     assert "all checks passed" in output
 
 
-@mock.patch("subprocess.run")
-def test_run_flux_check_passes_context(mock_run):
+def test_run_flux_check_passes_context(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="ok", stderr=""
     )
@@ -323,8 +324,8 @@ def test_run_flux_check_passes_context(mock_run):
     assert "prod" in call_args
 
 
-@mock.patch("subprocess.run")
-def test_run_flux_check_failure(mock_run):
+def test_run_flux_check_failure(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=1, stdout="", stderr="component unhealthy"
     )
@@ -335,19 +336,21 @@ def test_run_flux_check_failure(mock_run):
     assert "unhealthy" in output
 
 
-@mock.patch(
-    "subprocess.run",
-    side_effect=subprocess.TimeoutExpired(cmd="flux", timeout=60),
-)
-def test_run_flux_check_timeout(mock_run):
+def test_run_flux_check_timeout(mocker):
+    mock_run = mocker.patch(
+        "subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="flux", timeout=60),
+    )
+
     success, output = flux_lint.run_flux_check()
 
     assert success is False
     assert "Timeout" in output
 
 
-@mock.patch("subprocess.run", side_effect=FileNotFoundError)
-def test_run_flux_check_flux_not_found(mock_run):
+def test_run_flux_check_flux_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+
     success, output = flux_lint.run_flux_check()
 
     assert success is False
@@ -357,8 +360,8 @@ def test_run_flux_check_flux_not_found(mock_run):
 # get_flux_status tests
 
 
-@mock.patch("subprocess.run")
-def test_get_flux_status_success(mock_run):
+def test_get_flux_status_success(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[],
         returncode=0,
@@ -372,8 +375,8 @@ def test_get_flux_status_success(mock_run):
     assert "my-app" in output
 
 
-@mock.patch("subprocess.run")
-def test_get_flux_status_failure(mock_run):
+def test_get_flux_status_failure(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=1, stdout="", stderr="connection refused"
     )
@@ -384,19 +387,21 @@ def test_get_flux_status_failure(mock_run):
     assert "connection refused" in output
 
 
-@mock.patch(
-    "subprocess.run",
-    side_effect=subprocess.TimeoutExpired(cmd="flux", timeout=60),
-)
-def test_get_flux_status_timeout(mock_run):
+def test_get_flux_status_timeout(mocker):
+    mock_run = mocker.patch(
+        "subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="flux", timeout=60),
+    )
+
     success, output = flux_lint.get_flux_status()
 
     assert success is False
     assert "Timeout" in output
 
 
-@mock.patch("subprocess.run", side_effect=FileNotFoundError)
-def test_get_flux_status_flux_not_found(mock_run):
+def test_get_flux_status_flux_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+
     success, output = flux_lint.get_flux_status()
 
     assert success is False

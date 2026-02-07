@@ -1,5 +1,4 @@
 import subprocess
-from unittest import mock
 
 from kube_lint_mcp import helm_lint
 
@@ -39,8 +38,8 @@ def test_is_helm_chart_false_for_nonexistent():
 # validate_helm_chart tests
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_all_pass(mock_run, tmp_path):
+def test_validate_helm_chart_all_pass(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     rendered = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n"
     mock_run.side_effect = [
@@ -63,8 +62,8 @@ def test_validate_helm_chart_all_pass(mock_run, tmp_path):
     assert result.resource_count == 1
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_lint_fail(mock_run, tmp_path):
+def test_validate_helm_chart_lint_fail(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
@@ -87,8 +86,8 @@ def test_validate_helm_chart_lint_fail(mock_run, tmp_path):
     assert "lint error" in result.lint_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_render_fail_stops_early(mock_run, tmp_path):
+def test_validate_helm_chart_render_fail_stops_early(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
@@ -104,8 +103,8 @@ def test_validate_helm_chart_render_fail_stops_early(mock_run, tmp_path):
     assert result.server_passed is False
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_client_fail(mock_run, tmp_path):
+def test_validate_helm_chart_client_fail(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     rendered = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: t\n"
     mock_run.side_effect = [
@@ -123,8 +122,8 @@ def test_validate_helm_chart_client_fail(mock_run, tmp_path):
     assert result.server_passed is False
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_server_deprecation_warnings(mock_run, tmp_path):
+def test_validate_helm_chart_server_deprecation_warnings(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     rendered = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: t\n"
     mock_run.side_effect = [
@@ -146,8 +145,8 @@ def test_validate_helm_chart_server_deprecation_warnings(mock_run, tmp_path):
     assert any("deprecated" in w.lower() for w in result.warnings)
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_passes_values_and_namespace(mock_run, tmp_path):
+def test_validate_helm_chart_passes_values_and_namespace(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     values = tmp_path / "values.yaml"
     values.write_text("key: val")
@@ -185,11 +184,11 @@ def test_validate_helm_chart_not_a_chart(tmp_path):
     assert "missing Chart.yaml" in result.lint_error
 
 
-@mock.patch(
-    "subprocess.run",
-    side_effect=subprocess.TimeoutExpired(cmd="helm", timeout=60),
-)
-def test_validate_helm_chart_timeout(mock_run, tmp_path):
+def test_validate_helm_chart_timeout(mocker, tmp_path):
+    mock_run = mocker.patch(
+        "subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="helm", timeout=60),
+    )
     (tmp_path / "Chart.yaml").write_text("name: test")
 
     result = helm_lint.validate_helm_chart(str(tmp_path))
@@ -201,8 +200,8 @@ def test_validate_helm_chart_timeout(mock_run, tmp_path):
 # validate_helm_chart edge cases for full coverage
 
 
-@mock.patch("subprocess.run", side_effect=FileNotFoundError("helm"))
-def test_validate_helm_chart_helm_not_found(mock_run, tmp_path):
+def test_validate_helm_chart_helm_not_found(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError("helm"))
     (tmp_path / "Chart.yaml").write_text("name: test")
 
     result = helm_lint.validate_helm_chart(str(tmp_path))
@@ -211,8 +210,8 @@ def test_validate_helm_chart_helm_not_found(mock_run, tmp_path):
     assert "helm not found" in result.lint_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_kubectl_not_found(mock_run, tmp_path):
+def test_validate_helm_chart_kubectl_not_found(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     rendered = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: t\n"
     mock_run.side_effect = [
@@ -229,8 +228,8 @@ def test_validate_helm_chart_kubectl_not_found(mock_run, tmp_path):
     assert "kubectl not found" in result.client_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_template_not_found(mock_run, tmp_path):
+def test_validate_helm_chart_template_not_found(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     mock_run.side_effect = [
         # lint succeeds
@@ -246,8 +245,8 @@ def test_validate_helm_chart_template_not_found(mock_run, tmp_path):
     assert "helm not found" in result.render_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_template_timeout(mock_run, tmp_path):
+def test_validate_helm_chart_template_timeout(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     mock_run.side_effect = [
         # lint succeeds
@@ -263,8 +262,8 @@ def test_validate_helm_chart_template_timeout(mock_run, tmp_path):
     assert "Timeout" in result.render_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_helm_chart_malformed_rendered_yaml(mock_run, tmp_path):
+def test_validate_helm_chart_malformed_rendered_yaml(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "Chart.yaml").write_text("name: test")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),

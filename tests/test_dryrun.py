@@ -1,5 +1,4 @@
 import subprocess
-from unittest import mock
 
 from kube_lint_mcp.dryrun import (
     KUBECTL_TIMEOUT,
@@ -56,8 +55,8 @@ def test_parse_warnings_empty():
 # kubectl_dry_run tests
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_both_pass(mock_run):
+def test_kubectl_dry_run_both_pass(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="configured\n", stderr=""
@@ -76,8 +75,8 @@ def test_kubectl_dry_run_both_pass(mock_run):
     assert result.warnings is None
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_client_fail(mock_run):
+def test_kubectl_dry_run_client_fail(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="error: invalid resource"
@@ -91,8 +90,8 @@ def test_kubectl_dry_run_client_fail(mock_run):
     assert "invalid resource" in result.client_error
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_server_fail(mock_run):
+def test_kubectl_dry_run_server_fail(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="configured\n", stderr=""
@@ -109,8 +108,8 @@ def test_kubectl_dry_run_server_fail(mock_run):
     assert "forbidden" in result.server_error
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_with_deprecation_warnings(mock_run):
+def test_kubectl_dry_run_with_deprecation_warnings(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="configured\n", stderr=""
@@ -132,8 +131,8 @@ def test_kubectl_dry_run_with_deprecation_warnings(mock_run):
     assert "deprecated" in result.warnings[0].lower()
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_timeout(mock_run):
+def test_kubectl_dry_run_timeout(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="kubectl", timeout=60)
 
     result = kubectl_dry_run("/tmp/test.yaml")
@@ -143,8 +142,8 @@ def test_kubectl_dry_run_timeout(mock_run):
     assert "Timeout" in result.client_error
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_kubectl_not_found(mock_run):
+def test_kubectl_dry_run_kubectl_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = FileNotFoundError("kubectl")
 
     result = kubectl_dry_run("/tmp/test.yaml")
@@ -154,8 +153,8 @@ def test_kubectl_dry_run_kubectl_not_found(mock_run):
     assert "kubectl not found" in result.client_error
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_passes_context(mock_run):
+def test_kubectl_dry_run_passes_context(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="configured\n", stderr=""
@@ -174,8 +173,8 @@ def test_kubectl_dry_run_passes_context(mock_run):
         assert "my-ctx" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_no_context(mock_run):
+def test_kubectl_dry_run_no_context(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="configured\n", stderr=""
@@ -192,8 +191,8 @@ def test_kubectl_dry_run_no_context(mock_run):
         assert "--context" not in cmd
 
 
-@mock.patch("subprocess.run")
-def test_kubectl_dry_run_stdin_data(mock_run):
+def test_kubectl_dry_run_stdin_data(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
             args=[], returncode=0, stdout="configured\n", stderr=""

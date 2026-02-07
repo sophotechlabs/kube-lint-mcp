@@ -1,6 +1,5 @@
 import json
 import subprocess
-from unittest import mock
 
 from kube_lint_mcp.kubeconform_lint import (
     KUBECONFORM_TIMEOUT,
@@ -119,8 +118,8 @@ def test_parse_output_mixed_valid_and_garbage():
 # validate_manifests tests
 
 
-@mock.patch("subprocess.run")
-def test_validate_all_valid(mock_run):
+def test_validate_all_valid(mocker):
+    mock_run = mocker.patch("subprocess.run")
     stdout = "\n".join([
         _make_resource_json(),
         _make_resource_json(kind="Service", name="my-svc", version="v1"),
@@ -140,8 +139,8 @@ def test_validate_all_valid(mock_run):
     assert len(result.resources) == 2
 
 
-@mock.patch("subprocess.run")
-def test_validate_has_invalid(mock_run):
+def test_validate_has_invalid(mocker):
+    mock_run = mocker.patch("subprocess.run")
     stdout = "\n".join([
         _make_resource_json(),
         _make_resource_json(
@@ -160,8 +159,8 @@ def test_validate_has_invalid(mock_run):
     assert result.invalid == 1
 
 
-@mock.patch("subprocess.run")
-def test_validate_has_errors(mock_run):
+def test_validate_has_errors(mocker):
+    mock_run = mocker.patch("subprocess.run")
     stdout = _make_resource_json(
         status="statusError", msg="could not download schema",
     )
@@ -175,8 +174,8 @@ def test_validate_has_errors(mock_run):
     assert result.errors == 1
 
 
-@mock.patch("subprocess.run")
-def test_validate_skipped_only(mock_run):
+def test_validate_skipped_only(mocker):
+    mock_run = mocker.patch("subprocess.run")
     stdout = _make_resource_json(status="statusSkipped", kind="MyCRD", name="x")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout=stdout, stderr="",
@@ -189,8 +188,8 @@ def test_validate_skipped_only(mock_run):
     assert result.valid == 0
 
 
-@mock.patch("subprocess.run")
-def test_validate_empty_output(mock_run):
+def test_validate_empty_output(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )
@@ -202,9 +201,8 @@ def test_validate_empty_output(mock_run):
     assert result.valid == 0
 
 
-@mock.patch("subprocess.run")
-def test_validate_timeout(mock_run):
-    mock_run.side_effect = subprocess.TimeoutExpired(cmd="kubeconform", timeout=120)
+def test_validate_timeout(mocker):
+    mock_run = mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubeconform", timeout=120))
 
     result = validate_manifests("/tmp/manifests")
 
@@ -212,9 +210,8 @@ def test_validate_timeout(mock_run):
     assert "Timeout" in result.error
 
 
-@mock.patch("subprocess.run")
-def test_validate_not_found(mock_run):
-    mock_run.side_effect = FileNotFoundError("kubeconform")
+def test_validate_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError("kubeconform"))
 
     result = validate_manifests("/tmp/manifests")
 
@@ -222,8 +219,8 @@ def test_validate_not_found(mock_run):
     assert "kubeconform not found" in result.error
 
 
-@mock.patch("subprocess.run")
-def test_validate_kubernetes_version_flag(mock_run):
+def test_validate_kubernetes_version_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )
@@ -235,8 +232,8 @@ def test_validate_kubernetes_version_flag(mock_run):
     assert "1.29.0" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_validate_master_version_omits_flag(mock_run):
+def test_validate_master_version_omits_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )
@@ -247,8 +244,8 @@ def test_validate_master_version_omits_flag(mock_run):
     assert "-kubernetes-version" not in cmd
 
 
-@mock.patch("subprocess.run")
-def test_validate_strict_flag(mock_run):
+def test_validate_strict_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )
@@ -259,8 +256,8 @@ def test_validate_strict_flag(mock_run):
     assert "-strict" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_validate_strict_false_omits_flag(mock_run):
+def test_validate_strict_false_omits_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )
@@ -271,8 +268,8 @@ def test_validate_strict_false_omits_flag(mock_run):
     assert "-strict" not in cmd
 
 
-@mock.patch("subprocess.run")
-def test_validate_default_flags_always_present(mock_run):
+def test_validate_default_flags_always_present(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )
@@ -286,8 +283,8 @@ def test_validate_default_flags_always_present(mock_run):
     assert "-summary" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_validate_path_in_command(mock_run):
+def test_validate_path_in_command(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )

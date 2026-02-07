@@ -1,5 +1,4 @@
 import pathlib
-from unittest import mock
 
 import yaml
 
@@ -192,14 +191,14 @@ def test_validate_file_unclosed_string(tmp_path):
     assert result.valid is False
 
 
-def test_validate_file_error_without_mark(tmp_path):
+def test_validate_file_error_without_mark(tmp_path, mocker):
     """YAML errors without a problem_mark fall back to str(e)."""
     f = tmp_path / "weird.yaml"
     f.write_text("key: value\n")
 
     error = yaml.YAMLError("something went wrong")
-    with mock.patch("kube_lint_mcp.yaml_lint.yaml.load_all", side_effect=error):
-        result = validate_file(str(f))
+    mocker.patch("kube_lint_mcp.yaml_lint.yaml.load_all", side_effect=error)
+    result = validate_file(str(f))
 
     assert result.valid is False
     assert "something went wrong" in result.errors[0]

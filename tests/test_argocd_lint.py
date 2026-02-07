@@ -1,6 +1,5 @@
 import json
 import subprocess
-from unittest import mock
 
 from kube_lint_mcp import argocd_lint
 
@@ -105,8 +104,8 @@ ARGOCD_DIFF_OUTPUT = """\
 # _detect_argocd_namespace tests
 
 
-@mock.patch("subprocess.run")
-def test_detect_namespace_found(mock_run):
+def test_detect_namespace_found(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="argocd", stderr=""
     )
@@ -121,8 +120,8 @@ def test_detect_namespace_found(mock_run):
     assert "my-ctx" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_detect_namespace_not_found(mock_run):
+def test_detect_namespace_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=1, stdout="", stderr="not found"
     )
@@ -132,8 +131,8 @@ def test_detect_namespace_not_found(mock_run):
     assert result is None
 
 
-@mock.patch("subprocess.run")
-def test_detect_namespace_empty_output(mock_run):
+def test_detect_namespace_empty_output(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr=""
     )
@@ -143,15 +142,15 @@ def test_detect_namespace_empty_output(mock_run):
     assert result is None
 
 
-@mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=30))
-def test_detect_namespace_timeout(mock_run):
+def test_detect_namespace_timeout(mocker):
+    mock_run = mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=30))
     result = argocd_lint._detect_argocd_namespace("my-ctx")
 
     assert result is None
 
 
-@mock.patch("subprocess.run", side_effect=FileNotFoundError("kubectl"))
-def test_detect_namespace_kubectl_not_found(mock_run):
+def test_detect_namespace_kubectl_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError("kubectl"))
     result = argocd_lint._detect_argocd_namespace("my-ctx")
 
     assert result is None
@@ -160,8 +159,8 @@ def test_detect_namespace_kubectl_not_found(mock_run):
 # auto-detect integration: list_argocd_apps calls detect when no namespace
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_auto_detects_namespace(mock_run):
+def test_list_apps_auto_detects_namespace(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         # First call: _detect_argocd_namespace (kubectl)
         subprocess.CompletedProcess(args=[], returncode=0, stdout="argo-cd", stderr=""),
@@ -177,8 +176,8 @@ def test_list_apps_auto_detects_namespace(mock_run):
     assert "argo-cd" in argocd_cmd
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_skips_detect_when_namespace_provided(mock_run):
+def test_list_apps_skips_detect_when_namespace_provided(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="[]", stderr=""
     )
@@ -192,8 +191,8 @@ def test_list_apps_skips_detect_when_namespace_provided(mock_run):
     assert "custom-ns" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_errors_when_namespace_not_detected(mock_run):
+def test_list_apps_errors_when_namespace_not_detected(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = _DETECT_FAIL
 
     result = argocd_lint.list_argocd_apps(context="my-ctx")
@@ -202,8 +201,8 @@ def test_list_apps_errors_when_namespace_not_detected(mock_run):
     assert "auto-detect" in (result.error or "").lower()
 
 
-@mock.patch("subprocess.run")
-def test_get_app_errors_when_namespace_not_detected(mock_run):
+def test_get_app_errors_when_namespace_not_detected(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = _DETECT_FAIL
 
     result = argocd_lint.get_argocd_app("my-app", context="my-ctx")
@@ -212,8 +211,8 @@ def test_get_app_errors_when_namespace_not_detected(mock_run):
     assert "auto-detect" in (result.error or "").lower()
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_errors_when_namespace_not_detected(mock_run):
+def test_diff_app_errors_when_namespace_not_detected(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = _DETECT_FAIL
 
     result = argocd_lint.diff_argocd_app("my-app", context="my-ctx")
@@ -252,8 +251,8 @@ def test_build_args_with_empty_namespace():
 # list_argocd_apps tests
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_success(mock_run):
+def test_list_apps_success(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_APP_LIST_JSON, stderr=""),
@@ -272,8 +271,8 @@ def test_list_apps_success(mock_run):
     assert result.apps[1].health_status == "Degraded"
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_empty(mock_run):
+def test_list_apps_empty(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr=""),
@@ -285,8 +284,8 @@ def test_list_apps_empty(mock_run):
     assert len(result.apps) == 0
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_passes_kube_context_flag(mock_run):
+def test_list_apps_passes_kube_context_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr=""),
@@ -300,8 +299,8 @@ def test_list_apps_passes_kube_context_flag(mock_run):
     assert "prod-cluster" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_passes_namespace_flag(mock_run):
+def test_list_apps_passes_namespace_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="[]", stderr=""
     )
@@ -313,8 +312,8 @@ def test_list_apps_passes_namespace_flag(mock_run):
     assert "argo-cd" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_command_failure(mock_run):
+def test_list_apps_command_failure(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="FATA[0000] some error"),
@@ -326,8 +325,8 @@ def test_list_apps_command_failure(mock_run):
     assert "some error" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_argocd_not_found(mock_run):
+def test_list_apps_argocd_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         FileNotFoundError("argocd"),
@@ -339,8 +338,8 @@ def test_list_apps_argocd_not_found(mock_run):
     assert "not found" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_timeout(mock_run):
+def test_list_apps_timeout(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.TimeoutExpired(cmd="argocd", timeout=60),
@@ -352,8 +351,8 @@ def test_list_apps_timeout(mock_run):
     assert "Timeout" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_json_parse_error(mock_run):
+def test_list_apps_json_parse_error(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout="not json", stderr=""),
@@ -368,8 +367,8 @@ def test_list_apps_json_parse_error(mock_run):
 # get_argocd_app tests
 
 
-@mock.patch("subprocess.run")
-def test_get_app_success(mock_run):
+def test_get_app_success(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_APP_GET_JSON, stderr=""),
@@ -385,8 +384,8 @@ def test_get_app_success(mock_run):
     assert result.repo_url == "https://github.com/org/repo.git"
 
 
-@mock.patch("subprocess.run")
-def test_get_app_with_resources_and_conditions(mock_run):
+def test_get_app_with_resources_and_conditions(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_APP_GET_JSON, stderr=""),
@@ -403,8 +402,8 @@ def test_get_app_with_resources_and_conditions(mock_run):
     assert "SyncError" in result.conditions[0]
 
 
-@mock.patch("subprocess.run")
-def test_get_app_minimal(mock_run):
+def test_get_app_minimal(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_APP_GET_MINIMAL_JSON, stderr=""),
@@ -418,8 +417,8 @@ def test_get_app_minimal(mock_run):
     assert result.conditions is None
 
 
-@mock.patch("subprocess.run")
-def test_get_app_passes_kube_context_flag(mock_run):
+def test_get_app_passes_kube_context_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_APP_GET_MINIMAL_JSON, stderr=""),
@@ -434,8 +433,8 @@ def test_get_app_passes_kube_context_flag(mock_run):
     assert "my-app" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_get_app_passes_namespace_flag(mock_run):
+def test_get_app_passes_namespace_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout=ARGOCD_APP_GET_MINIMAL_JSON, stderr=""
     )
@@ -447,8 +446,8 @@ def test_get_app_passes_namespace_flag(mock_run):
     assert "argo-cd" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_get_app_command_failure(mock_run):
+def test_get_app_command_failure(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="app 'missing' not found"),
@@ -460,8 +459,8 @@ def test_get_app_command_failure(mock_run):
     assert "not found" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_get_app_argocd_not_found(mock_run):
+def test_get_app_argocd_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         FileNotFoundError("argocd"),
@@ -473,8 +472,8 @@ def test_get_app_argocd_not_found(mock_run):
     assert "not found" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_get_app_timeout(mock_run):
+def test_get_app_timeout(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.TimeoutExpired(cmd="argocd", timeout=60),
@@ -486,8 +485,8 @@ def test_get_app_timeout(mock_run):
     assert "Timeout" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_get_app_json_parse_error(mock_run):
+def test_get_app_json_parse_error(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout="not json", stderr=""),
@@ -499,8 +498,8 @@ def test_get_app_json_parse_error(mock_run):
     assert "parse" in (result.error or "").lower()
 
 
-@mock.patch("subprocess.run")
-def test_get_app_unexpected_format(mock_run):
+def test_get_app_unexpected_format(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout='"just a string"', stderr=""),
@@ -515,8 +514,8 @@ def test_get_app_unexpected_format(mock_run):
 # diff_argocd_app tests
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_in_sync(mock_run):
+def test_diff_app_in_sync(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
@@ -529,8 +528,8 @@ def test_diff_app_in_sync(mock_run):
     assert result.diff_output == ""
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_has_diff(mock_run):
+def test_diff_app_has_diff(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=1, stdout=ARGOCD_DIFF_OUTPUT, stderr=""),
@@ -543,8 +542,8 @@ def test_diff_app_has_diff(mock_run):
     assert "replicas" in result.diff_output
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_error(mock_run):
+def test_diff_app_error(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=2, stdout="", stderr="FATA[0000] app not found"),
@@ -556,8 +555,8 @@ def test_diff_app_error(mock_run):
     assert "not found" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_passes_kube_context_flag(mock_run):
+def test_diff_app_passes_kube_context_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
@@ -572,8 +571,8 @@ def test_diff_app_passes_kube_context_flag(mock_run):
     assert "my-app" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_passes_namespace_flag(mock_run):
+def test_diff_app_passes_namespace_flag(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr=""
     )
@@ -585,8 +584,8 @@ def test_diff_app_passes_namespace_flag(mock_run):
     assert "argo-cd" in cmd
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_argocd_not_found(mock_run):
+def test_diff_app_argocd_not_found(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         FileNotFoundError("argocd"),
@@ -598,8 +597,8 @@ def test_diff_app_argocd_not_found(mock_run):
     assert "not found" in (result.error or "")
 
 
-@mock.patch("subprocess.run")
-def test_diff_app_timeout(mock_run):
+def test_diff_app_timeout(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.TimeoutExpired(cmd="argocd", timeout=60),
@@ -647,8 +646,8 @@ def test_extract_source_non_dict_source():
 # Edge case: non-list JSON response for app list
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_non_list_json(mock_run):
+def test_list_apps_non_list_json(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout='{"not": "a list"}', stderr=""),
@@ -660,8 +659,8 @@ def test_list_apps_non_list_json(mock_run):
     assert len(result.apps) == 0
 
 
-@mock.patch("subprocess.run")
-def test_list_apps_non_dict_items(mock_run):
+def test_list_apps_non_dict_items(mocker):
+    mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         _DETECT_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout='["not a dict", 42]', stderr=""),
@@ -676,8 +675,8 @@ def test_list_apps_non_dict_items(mock_run):
 # Edge case: non-dict resource in get_app
 
 
-@mock.patch("subprocess.run")
-def test_get_app_with_non_dict_resource(mock_run):
+def test_get_app_with_non_dict_resource(mocker):
+    mock_run = mocker.patch("subprocess.run")
     data = {
         "metadata": {"name": "app", "namespace": "argocd"},
         "spec": {"project": "default", "source": {"repoURL": "", "path": "", "targetRevision": ""}},

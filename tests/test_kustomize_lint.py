@@ -1,5 +1,4 @@
 import subprocess
-from unittest import mock
 
 from kube_lint_mcp import kustomize_lint
 
@@ -60,8 +59,8 @@ data:
 """
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_all_pass(mock_run, tmp_path):
+def test_validate_kustomization_all_pass(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("apiVersion: kustomize.config.k8s.io/v1beta1")
     mock_run.side_effect = [
         # kubectl kustomize
@@ -81,8 +80,8 @@ def test_validate_kustomization_all_pass(mock_run, tmp_path):
     assert result.warnings is None
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_passes_context_flag(mock_run, tmp_path):
+def test_validate_kustomization_passes_context_flag(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("resources: []")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout=RENDERED_YAML, stderr=""),
@@ -99,8 +98,8 @@ def test_validate_kustomization_passes_context_flag(mock_run, tmp_path):
     assert "-f" in client_args and "-" in client_args
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_no_context_flag_when_none(mock_run, tmp_path):
+def test_validate_kustomization_no_context_flag_when_none(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("resources: []")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout=RENDERED_YAML, stderr=""),
@@ -114,8 +113,8 @@ def test_validate_kustomization_no_context_flag_when_none(mock_run, tmp_path):
     assert "--context" not in client_args
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_build_fail_stops_early(mock_run, tmp_path):
+def test_validate_kustomization_build_fail_stops_early(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("resources: [missing.yaml]")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
@@ -132,8 +131,8 @@ def test_validate_kustomization_build_fail_stops_early(mock_run, tmp_path):
     assert mock_run.call_count == 1
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_client_fail(mock_run, tmp_path):
+def test_validate_kustomization_client_fail(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("resources: []")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout=RENDERED_YAML, stderr=""),
@@ -150,8 +149,8 @@ def test_validate_kustomization_client_fail(mock_run, tmp_path):
     assert "invalid manifest" in result.client_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_server_fail(mock_run, tmp_path):
+def test_validate_kustomization_server_fail(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("resources: []")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout=RENDERED_YAML, stderr=""),
@@ -169,8 +168,8 @@ def test_validate_kustomization_server_fail(mock_run, tmp_path):
     assert "forbidden" in result.server_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_server_deprecation_warnings(mock_run, tmp_path):
+def test_validate_kustomization_server_deprecation_warnings(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("resources: []")
     mock_run.side_effect = [
         subprocess.CompletedProcess(args=[], returncode=0, stdout=RENDERED_YAML, stderr=""),
@@ -190,8 +189,8 @@ def test_validate_kustomization_server_deprecation_warnings(mock_run, tmp_path):
     assert any("deprecated" in w.lower() for w in result.warnings)
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_file_path_resolves_to_parent(mock_run, tmp_path):
+def test_validate_kustomization_file_path_resolves_to_parent(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     f = tmp_path / "kustomization.yaml"
     f.write_text("resources: []")
     mock_run.side_effect = [
@@ -207,11 +206,8 @@ def test_validate_kustomization_file_path_resolves_to_parent(mock_run, tmp_path)
     assert build_args[-1] == str(tmp_path)
 
 
-@mock.patch(
-    "subprocess.run",
-    side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=60),
-)
-def test_validate_kustomization_timeout(mock_run, tmp_path):
+def test_validate_kustomization_timeout(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=60))
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     result = kustomize_lint.validate_kustomization(str(tmp_path))
@@ -220,8 +216,8 @@ def test_validate_kustomization_timeout(mock_run, tmp_path):
     assert "Timeout" in result.build_error
 
 
-@mock.patch("subprocess.run", side_effect=FileNotFoundError)
-def test_validate_kustomization_kubectl_not_found(mock_run, tmp_path):
+def test_validate_kustomization_kubectl_not_found(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     result = kustomize_lint.validate_kustomization(str(tmp_path))
@@ -230,8 +226,8 @@ def test_validate_kustomization_kubectl_not_found(mock_run, tmp_path):
     assert "kubectl not found" in result.build_error
 
 
-@mock.patch("subprocess.run")
-def test_validate_kustomization_malformed_yaml(mock_run, tmp_path):
+def test_validate_kustomization_malformed_yaml(mocker, tmp_path):
+    mock_run = mocker.patch("subprocess.run")
     (tmp_path / "kustomization.yaml").write_text("resources: []")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
