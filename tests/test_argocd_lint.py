@@ -143,14 +143,14 @@ def test_detect_namespace_empty_output(mocker):
 
 
 def test_detect_namespace_timeout(mocker):
-    mock_run = mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=30))
+    mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=30))
     result = argocd_lint._detect_argocd_namespace("my-ctx")
 
     assert result is None
 
 
 def test_detect_namespace_kubectl_not_found(mocker):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError("kubectl"))
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError("kubectl"))
     result = argocd_lint._detect_argocd_namespace("my-ctx")
 
     assert result is None

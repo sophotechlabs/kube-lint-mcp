@@ -185,7 +185,7 @@ def test_validate_helm_chart_not_a_chart(tmp_path):
 
 
 def test_validate_helm_chart_timeout(mocker, tmp_path):
-    mock_run = mocker.patch(
+    mocker.patch(
         "subprocess.run",
         side_effect=subprocess.TimeoutExpired(cmd="helm", timeout=60),
     )
@@ -201,7 +201,7 @@ def test_validate_helm_chart_timeout(mocker, tmp_path):
 
 
 def test_validate_helm_chart_helm_not_found(mocker, tmp_path):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError("helm"))
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError("helm"))
     (tmp_path / "Chart.yaml").write_text("name: test")
 
     result = helm_lint.validate_helm_chart(str(tmp_path))

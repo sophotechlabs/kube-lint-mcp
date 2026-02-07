@@ -207,7 +207,7 @@ def test_validate_kustomization_file_path_resolves_to_parent(mocker, tmp_path):
 
 
 def test_validate_kustomization_timeout(mocker, tmp_path):
-    mock_run = mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=60))
+    mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=60))
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     result = kustomize_lint.validate_kustomization(str(tmp_path))
@@ -217,7 +217,7 @@ def test_validate_kustomization_timeout(mocker, tmp_path):
 
 
 def test_validate_kustomization_kubectl_not_found(mocker, tmp_path):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError)
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     result = kustomize_lint.validate_kustomization(str(tmp_path))

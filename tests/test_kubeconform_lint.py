@@ -202,7 +202,7 @@ def test_validate_empty_output(mocker):
 
 
 def test_validate_timeout(mocker):
-    mock_run = mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubeconform", timeout=120))
+    mocker.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubeconform", timeout=120))
 
     result = validate_manifests("/tmp/manifests")
 
@@ -211,7 +211,7 @@ def test_validate_timeout(mocker):
 
 
 def test_validate_not_found(mocker):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError("kubeconform"))
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError("kubeconform"))
 
     result = validate_manifests("/tmp/manifests")
 

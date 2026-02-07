@@ -91,7 +91,7 @@ def test_get_kubectl_contexts_no_current(mocker):
 
 
 def test_get_kubectl_contexts_timeout(mocker):
-    mock_run = mocker.patch(
+    mocker.patch(
         "subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=10)
     )
 
@@ -102,7 +102,7 @@ def test_get_kubectl_contexts_timeout(mocker):
 
 
 def test_get_kubectl_contexts_kubectl_not_found(mocker):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError)
 
     contexts, current = flux_lint.get_kubectl_contexts()
 
@@ -248,7 +248,7 @@ def test_validate_manifest_captures_deprecation_warnings(mocker, tmp_path):
 
 
 def test_validate_manifest_timeout(mocker, tmp_path):
-    mock_run = mocker.patch(
+    mocker.patch(
         "subprocess.run",
         side_effect=subprocess.TimeoutExpired(cmd="kubectl", timeout=30),
     )
@@ -262,7 +262,7 @@ def test_validate_manifest_timeout(mocker, tmp_path):
 
 
 def test_validate_manifest_kubectl_not_found(mocker, tmp_path):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError)
     f = tmp_path / "test.yaml"
     f.write_text("apiVersion: v1")
 
@@ -337,7 +337,7 @@ def test_run_flux_check_failure(mocker):
 
 
 def test_run_flux_check_timeout(mocker):
-    mock_run = mocker.patch(
+    mocker.patch(
         "subprocess.run",
         side_effect=subprocess.TimeoutExpired(cmd="flux", timeout=60),
     )
@@ -349,7 +349,7 @@ def test_run_flux_check_timeout(mocker):
 
 
 def test_run_flux_check_flux_not_found(mocker):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError)
 
     success, output = flux_lint.run_flux_check()
 
@@ -388,7 +388,7 @@ def test_get_flux_status_failure(mocker):
 
 
 def test_get_flux_status_timeout(mocker):
-    mock_run = mocker.patch(
+    mocker.patch(
         "subprocess.run",
         side_effect=subprocess.TimeoutExpired(cmd="flux", timeout=60),
     )
@@ -400,7 +400,7 @@ def test_get_flux_status_timeout(mocker):
 
 
 def test_get_flux_status_flux_not_found(mocker):
-    mock_run = mocker.patch("subprocess.run", side_effect=FileNotFoundError)
+    mocker.patch("subprocess.run", side_effect=FileNotFoundError)
 
     success, output = flux_lint.get_flux_status()
 
