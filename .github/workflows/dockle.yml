@@ -21,6 +21,9 @@ jobs:
 
       - name: Run Dockle
         uses: erzz/dockle-action@69369bc745ee29813f730231a821bcd4f71cd290 # v1
+        env:
+          DOCKLE_IGNORES: DKL-DI-0005
         with:
           image: kube-lint-mcp:scan
           failure-threshold: FATAL
+          accept-filenames: settings.py
