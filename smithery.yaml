@@ -1,0 +1,21 @@
+runtime: container
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      kubeconfig:
+        type: string
+        description: Path to your kubeconfig file
+        default: ~/.kube/config
+    required:
+      - kubeconfig
+  commandFunction: |-
+    (config) => ({
+      command: "docker",
+      args: [
+        "run", "-i", "--rm",
+        "-v", `${config.kubeconfig}:/home/nonroot/.kube/config:ro`,
+        "sophotechlabs/kube-lint-mcp:latest"
+      ]
+    })

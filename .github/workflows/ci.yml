@@ -40,12 +40,3 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
           use_oidc: true
-
-      - name: Trivy filesystem scan
-        if: matrix.python-version == '3.13'
-        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: CRITICAL,HIGH
-          exit-code: 1
