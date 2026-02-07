@@ -50,7 +50,7 @@ jobs:
         run: |
           sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
 
-      - name: Create release branch and push
+      - name: Create release PR
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -62,13 +62,8 @@ jobs:
           git add pyproject.toml server.json
           git commit -m "release: v${{ inputs.version }}"
           git push -u origin "$BRANCH"
-
-      - name: Create release PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
           gh pr create \
             --title "release: v${{ inputs.version }}" \
             --body "Automated release PR for v${{ inputs.version }}. Merge to trigger release." \
             --base main \
-            --head "release/v${{ inputs.version }}"
+            --head "$BRANCH"
