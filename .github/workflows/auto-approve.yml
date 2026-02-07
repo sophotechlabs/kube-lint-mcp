@@ -20,17 +20,3 @@ jobs:
       - uses: hmarr/auto-approve-action@8f929096a962e83ccdfa8afcf855f39f12d4dac7 # v4
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-
-  auto-approve-release:
-    runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'release/')
-    steps:
-      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2
-        id: approver-token
-        with:
-          app-id: ${{ vars.APPROVER_APP_ID }}
-          private-key: ${{ secrets.APPROVER_APP_PRIVATE_KEY }}
-
-      - uses: hmarr/auto-approve-action@8f929096a962e83ccdfa8afcf855f39f12d4dac7 # v4
-        with:
-          github-token: ${{ steps.approver-token.outputs.token }}

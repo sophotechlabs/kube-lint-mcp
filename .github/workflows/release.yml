@@ -10,12 +10,17 @@ on:
 
 permissions: read-all
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  release-pr:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
+    outputs:
+      version: ${{ inputs.version }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -43,27 +48,146 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Bump version in pyproject.toml
-        run: sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' pyproject.toml
-
-      - name: Bump version in server.json
-        run: |
-          sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
-
-      - name: Create release PR
+      - name: Bump version and push to main
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          BRANCH="release/v${{ inputs.version }}"
+          sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' pyproject.toml
+          sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          git checkout -b "$BRANCH"
           git add pyproject.toml server.json
           git commit -m "release: v${{ inputs.version }}"
-          git push -u origin "$BRANCH"
-          gh pr create \
-            --title "release: v${{ inputs.version }}" \
-            --body "Automated release PR for v${{ inputs.version }}. Merge to trigger release." \
-            --base main \
-            --head "$BRANCH"
+          git push origin main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ inputs.version }}" \
+            --title "v${{ inputs.version }}" \
+            --generate-notes \
+            --target main
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: v${{ needs.release.outputs.version }}
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Generate Python SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          artifact-name: sbom-python-${{ needs.release.outputs.version }}.spdx.json
+          output-file: sbom-python.spdx.json
+
+      - name: Attest build provenance (Python package)
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*
+
+      - name: Upload SBOM to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ needs.release.outputs.version }}" sbom-python.spdx.json --clobber
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
+
+      - name: Publish to MCP Registry
+        run: |
+          curl -fsSL https://registry.modelcontextprotocol.io/cli/install.sh | bash
+          mcp-publisher publish --token "${{ secrets.GITHUB_TOKEN }}"
+        continue-on-error: true
+
+  docker:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: v${{ needs.release.outputs.version }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate docker tags
+        id: tags
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          MAJOR_MINOR="${VERSION%.*}"
+          GHCR="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          TAGS="${GHCR}:${VERSION},${GHCR}:${MAJOR_MINOR},${GHCR}:latest"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sign image with Cosign
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          artifact-name: sbom-${{ needs.release.outputs.version }}.spdx.json
+          output-file: sbom.spdx.json
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@c44148e5bf178192efd8947e07a0d439a356c60b # v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Upload Docker SBOM to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ needs.release.outputs.version }}" sbom.spdx.json --clobber
