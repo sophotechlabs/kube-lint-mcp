@@ -11,6 +11,8 @@ jobs:
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v6
@@ -35,3 +37,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }}" || true
+
+  publish:
+    needs: create-release
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ needs.create-release.outputs.version }}
+    permissions:
+      id-token: write
+      contents: read
+    secrets: inherit
+
+  docker:
+    needs: create-release
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      version: ${{ needs.create-release.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
