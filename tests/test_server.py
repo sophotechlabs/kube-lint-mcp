@@ -24,6 +24,9 @@ async def test_list_tools_returns_all_tools():
         "helm_dryrun",
         "kubeconform_validate",
         "yaml_validate",
+        "argocd_app_list",
+        "argocd_app_get",
+        "argocd_app_diff",
     }
 
 
@@ -1271,3 +1274,355 @@ async def test_yaml_validate_single_file(tmp_path):
 
     assert "1 valid, 0 invalid" in text
     assert "PASS" in text
+
+
+# argocd_app_list integration tests
+
+
+ARGOCD_LIST_JSON = json.dumps([
+    {
+        "metadata": {"name": "my-app", "namespace": "argocd"},
+        "spec": {
+            "project": "default",
+            "source": {
+                "repoURL": "https://github.com/org/repo.git",
+                "path": "k8s/app",
+                "targetRevision": "HEAD",
+            },
+        },
+        "status": {
+            "sync": {"status": "Synced"},
+            "health": {"status": "Healthy"},
+        },
+    },
+])
+
+ARGOCD_GET_JSON = json.dumps({
+    "metadata": {"name": "my-app", "namespace": "argocd"},
+    "spec": {
+        "project": "default",
+        "source": {
+            "repoURL": "https://github.com/org/repo.git",
+            "path": "k8s/app",
+            "targetRevision": "HEAD",
+        },
+    },
+    "status": {
+        "sync": {"status": "Synced", "revision": "abc123"},
+        "health": {"status": "Healthy"},
+        "conditions": [
+            {"type": "SyncError", "message": "some sync issue"},
+        ],
+        "resources": [
+            {
+                "kind": "Deployment",
+                "namespace": "default",
+                "name": "my-app",
+                "status": "Synced",
+                "health": {"status": "Healthy"},
+            },
+        ],
+    },
+})
+
+ARGOCD_GET_MINIMAL_JSON = json.dumps({
+    "metadata": {"name": "my-app", "namespace": "argocd"},
+    "spec": {
+        "project": "default",
+        "source": {
+            "repoURL": "https://github.com/org/repo.git",
+            "path": "k8s/app",
+            "targetRevision": "HEAD",
+        },
+    },
+    "status": {
+        "sync": {"status": "OutOfSync", "revision": "def456"},
+        "health": {"status": "Degraded", "message": "container failing"},
+    },
+})
+
+
+@pytest.mark.asyncio
+async def test_argocd_app_list_requires_context():
+    result = await server.call_tool("argocd_app_list", {})
+
+    assert "select_kube_context" in result[0].text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_list_success(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=ARGOCD_LIST_JSON, stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_list", {})
+    text = result[0].text
+
+    assert "ArgoCD Application List" in text
+    assert "Context: test-ctx" in text
+    assert "my-app" in text
+    assert "Synced" in text
+    assert "Healthy" in text
+    assert "Total: 1 application(s)" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_list_empty(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="[]", stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_list", {})
+    text = result[0].text
+
+    assert "No ArgoCD applications found" in text
+    assert "Total: 0 application(s)" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_list_with_namespace(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=ARGOCD_LIST_JSON, stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_list", {"namespace": "argo-cd"})
+    text = result[0].text
+
+    assert "Namespace: argo-cd" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_list_error(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout="", stderr="connection refused"
+    )
+
+    result = await server.call_tool("argocd_app_list", {})
+    text = result[0].text
+
+    assert "Error listing ArgoCD apps" in text
+    assert "connection refused" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_list_shows_context(mock_run):
+    server._selected_context = "prod-cluster"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="[]", stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_list", {})
+    text = result[0].text
+
+    assert "Context: prod-cluster" in text
+
+
+# argocd_app_get integration tests
+
+
+@pytest.mark.asyncio
+async def test_argocd_app_get_requires_context():
+    result = await server.call_tool("argocd_app_get", {"app_name": "my-app"})
+
+    assert "select_kube_context" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_argocd_app_get_missing_app_name():
+    server._selected_context = "test-ctx"
+
+    result = await server.call_tool("argocd_app_get", {})
+    text = result[0].text
+
+    assert "app_name" in text
+    assert "required" in text.lower()
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_get_success(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_get", {"app_name": "my-app"})
+    text = result[0].text
+
+    assert "ArgoCD Application Detail" in text
+    assert "Context: test-ctx" in text
+    assert "Application: my-app" in text
+    assert "Sync Status: Synced" in text
+    assert "Health Status: Healthy" in text
+    assert "Project: default" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_get_with_resources_and_conditions(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_get", {"app_name": "my-app"})
+    text = result[0].text
+
+    assert "Conditions:" in text
+    assert "SyncError" in text
+    assert "Resources:" in text
+    assert "Deployment/my-app" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_get_with_health_message(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=ARGOCD_GET_MINIMAL_JSON, stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_get", {"app_name": "my-app"})
+    text = result[0].text
+
+    assert "Health Message: container failing" in text
+    assert "Sync Revision: def456" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_get_error(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout="", stderr="app 'missing' not found"
+    )
+
+    result = await server.call_tool("argocd_app_get", {"app_name": "missing"})
+    text = result[0].text
+
+    assert "Error getting ArgoCD app" in text
+    assert "not found" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_get_shows_context_and_app(mock_run):
+    server._selected_context = "prod-cluster"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""
+    )
+
+    result = await server.call_tool(
+        "argocd_app_get", {"app_name": "my-app"},
+    )
+    text = result[0].text
+
+    assert "Context: prod-cluster" in text
+    assert "Application: my-app" in text
+
+
+# argocd_app_diff integration tests
+
+
+@pytest.mark.asyncio
+async def test_argocd_app_diff_requires_context():
+    result = await server.call_tool("argocd_app_diff", {"app_name": "my-app"})
+
+    assert "select_kube_context" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_argocd_app_diff_missing_app_name():
+    server._selected_context = "test-ctx"
+
+    result = await server.call_tool("argocd_app_diff", {})
+    text = result[0].text
+
+    assert "app_name" in text
+    assert "required" in text.lower()
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_diff_in_sync(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_diff", {"app_name": "my-app"})
+    text = result[0].text
+
+    assert "ArgoCD Application Diff" in text
+    assert "IN SYNC" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_diff_has_diff(mock_run):
+    server._selected_context = "test-ctx"
+
+    diff_output = "===== apps/Deployment default/my-app ======\n  replicas: 2 -> 3"
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout=diff_output, stderr=""
+    )
+
+    result = await server.call_tool("argocd_app_diff", {"app_name": "my-app"})
+    text = result[0].text
+
+    assert "OUT OF SYNC" in text
+    assert "replicas" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_diff_error(mock_run):
+    server._selected_context = "test-ctx"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=2, stdout="", stderr="FATA[0000] app not found"
+    )
+
+    result = await server.call_tool("argocd_app_diff", {"app_name": "missing"})
+    text = result[0].text
+
+    assert "Error diffing ArgoCD app" in text
+    assert "not found" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_argocd_app_diff_shows_context_and_app(mock_run):
+    server._selected_context = "prod-cluster"
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr=""
+    )
+
+    result = await server.call_tool(
+        "argocd_app_diff", {"app_name": "my-app"},
+    )
+    text = result[0].text
+
+    assert "Context: prod-cluster" in text
+    assert "Application: my-app" in text

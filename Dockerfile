@@ -31,6 +31,11 @@ RUN curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSIO
 RUN curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-${TARGETARCH}.tar.gz" \
     | tar xz -C . kubeconform
 
+# argocd
+ARG ARGOCD_VERSION=2.13.3
+RUN curl -fsSL "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-${TARGETARCH}" -o argocd \
+    && chmod +x argocd
+
 # Install Python package
 COPY . /src
 RUN pip install --no-cache-dir --prefix=/install /src
@@ -40,7 +45,7 @@ FROM python:3.13-slim
 
 RUN groupadd -r nonroot && useradd -r -g nonroot -d /home/nonroot -m nonroot
 
-COPY --from=builder /tools/kubectl /tools/helm /tools/flux /tools/kubeconform /usr/local/bin/
+COPY --from=builder /tools/kubectl /tools/helm /tools/flux /tools/kubeconform /tools/argocd /usr/local/bin/
 COPY --from=builder /install /usr/local
 
 USER nonroot

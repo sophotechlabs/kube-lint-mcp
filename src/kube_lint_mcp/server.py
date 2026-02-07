@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover
     )
     sys.exit(1)
 
-from kube_lint_mcp import flux_lint, helm_lint, kubeconform_lint, kustomize_lint, yaml_lint
+from kube_lint_mcp import argocd_lint, flux_lint, helm_lint, kubeconform_lint, kustomize_lint, yaml_lint
 
 logger = logging.getLogger(__name__)
 
@@ -339,6 +339,114 @@ def _format_yaml_result(
     return "\n".join(lines)
 
 
+def _format_argocd_app_list_result(
+    result: argocd_lint.ArgoAppListResult,
+    context: str,
+    namespace: str | None,
+) -> str:
+    """Format ArgoCD app list result into output text."""
+    lines = [
+        "ArgoCD Application List",
+        f"Context: {context}",
+    ]
+    if namespace:
+        lines.append(f"Namespace: {namespace}")
+    lines.extend(["=" * 50, ""])
+
+    if not result.apps:
+        lines.append("No ArgoCD applications found.")
+    else:
+        for app in result.apps:
+            lines.append(f"  {app.name}")
+            lines.append(f"    Project: {app.project}")
+            lines.append(f"    Sync: {app.sync_status}  Health: {app.health_status}")
+            lines.append(f"    Repo: {app.repo_url}")
+            if app.path:
+                lines.append(f"    Path: {app.path}")
+            if app.target_revision:
+                lines.append(f"    Revision: {app.target_revision}")
+            lines.append("")
+
+    lines.append("=" * 50)
+    lines.append(f"Total: {len(result.apps)} application(s)")
+    return "\n".join(lines)
+
+
+def _format_argocd_app_get_result(
+    result: argocd_lint.ArgoAppGetResult,
+    context: str,
+) -> str:
+    """Format ArgoCD app get result into output text."""
+    lines = [
+        "ArgoCD Application Detail",
+        f"Context: {context}",
+        f"Application: {result.name}",
+        "=" * 50,
+        "",
+        f"  Project: {result.project}",
+        f"  Namespace: {result.namespace}",
+        f"  Sync Status: {result.sync_status}",
+        f"  Health Status: {result.health_status}",
+    ]
+    if result.sync_message:
+        lines.append(f"  Sync Revision: {result.sync_message}")
+    if result.health_message:
+        lines.append(f"  Health Message: {result.health_message}")
+    lines.extend([
+        f"  Repo: {result.repo_url}",
+        f"  Path: {result.path}",
+        f"  Revision: {result.target_revision}",
+        "",
+    ])
+
+    if result.conditions:
+        lines.append("Conditions:")
+        for cond in result.conditions:
+            lines.append(f"  - {cond}")
+        lines.append("")
+
+    if result.resources:
+        lines.append("Resources:")
+        for r in result.resources:
+            health = r.get("health", "")
+            status_str = r.get("status", "")
+            label = f"{r.get('kind', '')}/{r.get('name', '')}"
+            ns = r.get("namespace", "")
+            if ns:
+                label = f"{label} ({ns})"
+            lines.append(f"  {label}: sync={status_str} health={health}")
+        lines.append("")
+
+    lines.append("=" * 50)
+    return "\n".join(lines)
+
+
+def _format_argocd_app_diff_result(
+    result: argocd_lint.ArgoAppDiffResult,
+    context: str,
+    app_name: str,
+) -> str:
+    """Format ArgoCD app diff result into output text."""
+    lines = [
+        "ArgoCD Application Diff",
+        f"Context: {context}",
+        f"Application: {app_name}",
+        "=" * 50,
+        "",
+    ]
+
+    if result.in_sync:
+        lines.append("Application is IN SYNC - no differences between live and desired state.")
+    else:
+        lines.append("Application is OUT OF SYNC - differences detected:")
+        lines.append("")
+        lines.append(result.diff_output)
+
+    lines.append("")
+    lines.append("=" * 50)
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Tool listing
 # ---------------------------------------------------------------------------
@@ -521,6 +629,80 @@ async def list_tools() -> list[Tool]:
                     },
                 },
                 "required": ["path"],
+            },
+        ),
+        Tool(
+            name="argocd_app_list",
+            description=(
+                "List all ArgoCD applications with sync and health status.\n"
+                "Uses --core mode (kubeconfig only, no ArgoCD server auth needed).\n"
+                "Requires select_kube_context to be called first."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "namespace": {
+                        "type": "string",
+                        "description": (
+                            "Namespace where ArgoCD Application CRs live (optional)."
+                            " Common values: 'argocd', 'argo-cd'"
+                        ),
+                    },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="argocd_app_get",
+            description=(
+                "Get detailed status of a single ArgoCD application including\n"
+                "sync/health status, conditions, and resource statuses.\n"
+                "Uses --core mode (kubeconfig only, no ArgoCD server auth needed).\n"
+                "Requires select_kube_context to be called first."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "type": "string",
+                        "description": "Name of the ArgoCD Application (required)",
+                    },
+                    "namespace": {
+                        "type": "string",
+                        "description": (
+                            "Namespace where the Application CR lives (optional)."
+                            " Common values: 'argocd', 'argo-cd'"
+                        ),
+                    },
+                },
+                "required": ["app_name"],
+            },
+        ),
+        Tool(
+            name="argocd_app_diff",
+            description=(
+                "Show diff between live and desired state of an ArgoCD application.\n"
+                "Returns unified diff output showing what would change on sync.\n"
+                "Exit 0 = in sync, exit 1 = has diff, exit 2 = error.\n"
+                "Uses --core mode (kubeconfig only, no ArgoCD server auth needed).\n"
+                "Requires select_kube_context to be called first."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "type": "string",
+                        "description": "Name of the ArgoCD Application (required)",
+                    },
+                    "namespace": {
+                        "type": "string",
+                        "description": (
+                            "Namespace where the Application CR lives (optional)."
+                            " Common values: 'argocd', 'argo-cd'"
+                        ),
+                    },
+                },
+                "required": ["app_name"],
             },
         ),
     ]
@@ -727,6 +909,60 @@ def _handle_yaml_validate(arguments: dict[str, Any]) -> list[TextContent]:
     return _text(_format_yaml_result(result, path))
 
 
+def _handle_argocd_app_list(arguments: dict[str, Any]) -> list[TextContent]:
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
+
+    namespace = arguments.get("namespace")
+    result = argocd_lint.list_argocd_apps(context=ctx, namespace=namespace)
+
+    if not result.success:
+        return _text(f"Error listing ArgoCD apps: {result.error}")
+
+    return _text(_format_argocd_app_list_result(result, ctx, namespace))
+
+
+def _handle_argocd_app_get(arguments: dict[str, Any]) -> list[TextContent]:
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
+
+    app_name = arguments.get("app_name")
+    if not app_name:
+        return _text("Error: 'app_name' parameter is required")
+
+    namespace = arguments.get("namespace")
+    result = argocd_lint.get_argocd_app(
+        app_name=app_name, context=ctx, namespace=namespace,
+    )
+
+    if not result.success:
+        return _text(f"Error getting ArgoCD app '{app_name}': {result.error}")
+
+    return _text(_format_argocd_app_get_result(result, ctx))
+
+
+def _handle_argocd_app_diff(arguments: dict[str, Any]) -> list[TextContent]:
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
+
+    app_name = arguments.get("app_name")
+    if not app_name:
+        return _text("Error: 'app_name' parameter is required")
+
+    namespace = arguments.get("namespace")
+    result = argocd_lint.diff_argocd_app(
+        app_name=app_name, context=ctx, namespace=namespace,
+    )
+
+    if not result.success:
+        return _text(f"Error diffing ArgoCD app '{app_name}': {result.error}")
+
+    return _text(_format_argocd_app_diff_result(result, ctx, app_name))
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table + call_tool
 # ---------------------------------------------------------------------------
@@ -741,6 +977,9 @@ _HANDLERS: dict[str, Callable[[dict[str, Any]], list[TextContent]]] = {
     "helm_dryrun": _handle_helm_dryrun,
     "kubeconform_validate": _handle_kubeconform_validate,
     "yaml_validate": _handle_yaml_validate,
+    "argocd_app_list": _handle_argocd_app_list,
+    "argocd_app_get": _handle_argocd_app_get,
+    "argocd_app_diff": _handle_argocd_app_diff,
 }
 
 

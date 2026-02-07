@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ArgoCD application management tools: `argocd_app_list`, `argocd_app_get`, `argocd_app_diff`
+- ArgoCD uses `--core` mode (kubeconfig only, no ArgoCD server auth needed)
+- ArgoCD CLI bundled in Docker image (v2.13.3)
+- `KUBE_LINT_ARGOCD_TIMEOUT` environment variable for ArgoCD CLI timeout
 - `py.typed` marker for PEP 561 inline type support
 - mypy strict type checking with CI integration
 - CHANGELOG.md

@@ -12,7 +12,7 @@
 
 mcp-name: io.github.archy-rock3t-cloud/kube-lint-mcp
 
-MCP server that validates Kubernetes manifests and Helm charts with kubectl dry-run before you commit — preventing deployment and GitOps reconciliation failures.
+MCP server that validates Kubernetes manifests, Helm charts, and ArgoCD applications before you commit — preventing deployment and GitOps reconciliation failures.
 
 Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Claude Desktop](https://claude.ai/download), and any [MCP-compatible](https://modelcontextprotocol.io) client.
 
@@ -49,6 +49,7 @@ No flags, no CLI args — the AI agent picks the right tool automatically.
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) configured with cluster access
 - [helm](https://helm.sh/docs/intro/install/) (for Helm chart validation)
 - [flux](https://fluxcd.io/flux/installation/) (for Flux operations)
+- [argocd](https://argo-cd.readthedocs.io/en/stable/cli_installation/) (for ArgoCD operations — uses `--core` mode, no server auth needed)
 
 ## Installation
 
@@ -60,7 +61,7 @@ pip install kube-lint-mcp
 
 ### Docker (batteries included)
 
-The Docker image ships with kubectl, helm, flux, and kubeconform — no local installs needed.
+The Docker image ships with kubectl, helm, flux, kubeconform, and argocd — no local installs needed.
 
 ```bash
 docker pull ghcr.io/sophotechlabs/kube-lint-mcp:latest
@@ -181,6 +182,52 @@ Verify Flux installation health by running `flux check`. Reports controller stat
 
 Show Flux reconciliation status for all resources across all namespaces (`flux get all -A`). Useful for checking if resources are synced or stuck. No parameters.
 
+### argocd_app_list
+
+List all ArgoCD applications with sync and health status. Uses `--core` mode — connects via kubeconfig, no ArgoCD server auth needed.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `namespace` | string | no | Namespace where Application CRs live (e.g. `argocd`, `argo-cd`) |
+
+```
+You: "List all ArgoCD applications"
+```
+
+### argocd_app_get
+
+Get detailed status of a single ArgoCD application including sync/health status, conditions, and per-resource breakdown.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `app_name` | string | yes | Name of the ArgoCD Application |
+| `namespace` | string | no | Namespace where the Application CR lives |
+
+```
+You: "Show me the status of the my-app ArgoCD application"
+```
+
+### argocd_app_diff
+
+Show unified diff between live and desired state of an ArgoCD application. Indicates whether the app is in sync or what would change on the next sync.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `app_name` | string | yes | Name of the ArgoCD Application |
+| `namespace` | string | no | Namespace where the Application CR lives |
+
+```
+You: "Show me what would change if we sync the my-app ArgoCD application"
+```
+
+### yaml_validate
+
+Validate YAML syntax of Kubernetes manifest files. Catches syntax errors, duplicate keys, and tab indentation. **Does not require a cluster connection.**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | yes | Path to YAML file or directory |
+
 ### kubeconform_validate
 
 Offline schema validation against Kubernetes JSON schemas. **Does not require a cluster connection.** Catches invalid fields, type mismatches, and missing required fields.
@@ -197,12 +244,19 @@ You: "Validate all manifests in k8s/ against Kubernetes 1.29 with strict mode"
 
 ## Typical workflow
 
+### FluxCD / Helm / Kustomize
 1. `list_kube_contexts` — see available clusters
 2. `select_kube_context` — target a cluster (in-memory only, never mutates kubeconfig)
 3. `flux_dryrun`, `kustomize_dryrun`, or `helm_dryrun` — validate before committing
 4. Only commit when all checks pass
 
-For offline validation without a cluster, use `kubeconform_validate` directly — no context selection needed.
+### ArgoCD
+1. `list_kube_contexts` / `select_kube_context` — pick a cluster
+2. `argocd_app_list` — see all apps and their sync/health status
+3. `argocd_app_get` — drill into a specific app's resources and conditions
+4. `argocd_app_diff` — see what would change on the next sync
+
+For offline validation without a cluster, use `kubeconform_validate` or `yaml_validate` directly — no context selection needed.
 
 ## Safety
 
@@ -220,6 +274,7 @@ All validation tools are **read-only** — they use `kubectl apply --dry-run` wh
 | `KUBE_LINT_HELM_TIMEOUT` | `60` | Timeout for helm lint and template operations |
 | `KUBE_LINT_FLUX_TIMEOUT` | `60` | Timeout for flux check and status operations |
 | `KUBE_LINT_KUBECONFORM_TIMEOUT` | `120` | Timeout for kubeconform validation |
+| `KUBE_LINT_ARGOCD_TIMEOUT` | `60` | Timeout for ArgoCD CLI operations |
 
 Set these in your MCP server config:
 
@@ -273,6 +328,14 @@ Increase the relevant timeout via environment variables. For a Helm chart with m
 ### Server dry-run fails but client dry-run passes
 
 This is expected. Client dry-run validates syntax and schema locally. Server dry-run sends the manifest to the API server which checks additional constraints: namespace existence, CRD availability, admission webhooks, resource quotas. Fix the server-side issue before committing.
+
+### "argocd not found"
+
+Install the ArgoCD CLI: `brew install argocd` (macOS) or download from [releases](https://github.com/argoproj/argo-cd/releases). The Docker image includes the ArgoCD CLI.
+
+### ArgoCD --core mode
+
+All ArgoCD tools use `--core` mode, which connects directly via your kubeconfig — no ArgoCD server authentication is needed. This requires that the ArgoCD CRDs (Application, AppProject) are installed on the cluster.
 
 ### kubeconform reports "skipped" resources
 
