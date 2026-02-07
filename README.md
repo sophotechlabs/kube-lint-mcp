@@ -149,7 +149,7 @@ The server **never mutates your kubeconfig**. Context is held in memory and pass
 
 ```bash
 pip install -e ".[dev]"
-make test    # 126 tests, 100% coverage
+make test    # 100% coverage
 make lint    # flake8
 ```
 
