@@ -1,5 +1,5 @@
 # ---- Stage 1: Build + install ----
-FROM dhi.io/python:3.13-dev AS builder
+FROM python:3.13-slim AS builder
 
 ARG TARGETARCH
 
@@ -8,7 +8,7 @@ ARG HELM_VERSION=3.17.1
 ARG FLUX_VERSION=2.4.0
 ARG KUBECONFORM_VERSION=0.6.7
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl gzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tools
 
@@ -28,14 +28,18 @@ RUN curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSIO
 RUN curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-${TARGETARCH}.tar.gz" \
     | tar xz -C . kubeconform
 
-# Install Python package into a prefix we can copy
+# Install Python package
 COPY . /src
 RUN pip install --no-cache-dir --prefix=/install /src
 
 # ---- Stage 2: Runtime ----
-FROM dhi.io/python:3.13
+FROM python:3.13-slim
+
+RUN groupadd -r nonroot && useradd -r -g nonroot -d /home/nonroot -m nonroot
 
 COPY --from=builder /tools/kubectl /tools/helm /tools/flux /tools/kubeconform /usr/local/bin/
-COPY --from=builder /install /home/nonroot/.local
+COPY --from=builder /install /usr/local
+
+USER nonroot
 
 CMD ["python", "-m", "kube_lint_mcp"]
