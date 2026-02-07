@@ -23,9 +23,10 @@ jobs:
 
       - name: Extract version from branch name
         id: version
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          VERSION="${{ github.event.pull_request.head.ref }}"
-          VERSION="${VERSION#release/v}"
+          VERSION="${HEAD_REF#release/v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
@@ -40,7 +41,8 @@ jobs:
       - name: Delete release branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }}" || true
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${HEAD_REF}" || true
 
   publish:
     needs: create-release
