@@ -36,6 +36,13 @@ jobs:
             exit 1
           fi
 
+      - name: Generate App token
+        id: app-token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Bump version in pyproject.toml
         run: sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' pyproject.toml
 
@@ -45,11 +52,12 @@ jobs:
 
       - name: Create release PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           BRANCH="release/v${{ inputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git checkout -b "$BRANCH"
           git add pyproject.toml server.json
           git commit -m "release: v${{ inputs.version }}"
