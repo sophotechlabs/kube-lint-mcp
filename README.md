@@ -247,7 +247,7 @@ The pip install only installs the Python package. You need kubectl, helm, and fl
 
 Make sure your kubeconfig is accessible inside the container. The `$HOME:$HOME:ro` mount maps your home directory read-only. If your kubeconfig references files outside `$HOME` (e.g. `/etc/kubernetes/`), mount those paths too.
 
-If your kubeconfig uses **auth plugins** (GKE, EKS, AKS), the plugin binaries aren't in the Docker image. Either:
+If your kubeconfig uses **auth plugins** (GKE, EKS), the plugin binaries aren't in the Docker image. Either:
 - Use the pip install method instead
 - Or generate a static token/certificate kubeconfig for the Docker image
 
