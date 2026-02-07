@@ -42,7 +42,7 @@ Issues = "https://github.com/sophotechlabs/kube-lint-mcp/issues"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
-addopts = "--cov=src/kube_lint_mcp --cov-report=term-missing"
+addopts = "--cov=src/kube_lint_mcp --cov=tests --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 120
