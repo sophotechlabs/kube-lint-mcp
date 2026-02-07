@@ -3,11 +3,10 @@
 import logging
 import os
 import subprocess
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
 from kube_lint_mcp.dryrun import build_ctx_args, kubectl_dry_run
-
 
 logger = logging.getLogger(__name__)
 

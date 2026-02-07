@@ -10,18 +10,14 @@ from typing import Any
 try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
-    from mcp.types import Tool, TextContent
+    from mcp.types import TextContent, Tool
 except ImportError:  # pragma: no cover
     print(
         "Error: MCP SDK not installed. Install with: pip install mcp", file=sys.stderr
     )
     sys.exit(1)
 
-from kube_lint_mcp import flux_lint
-from kube_lint_mcp import helm_lint
-from kube_lint_mcp import kubeconform_lint
-from kube_lint_mcp import kustomize_lint
-
+from kube_lint_mcp import flux_lint, helm_lint, kubeconform_lint, kustomize_lint
 
 logger = logging.getLogger(__name__)
 
@@ -303,7 +299,7 @@ def _format_kubeconform_result(
 # Tool listing
 # ---------------------------------------------------------------------------
 
-@app.list_tools()
+@app.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
 async def list_tools() -> list[Tool]:
     """List available tools."""
     return [
@@ -536,6 +532,7 @@ def _handle_flux_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     err = _require_context()
     if err:
         return [err]
+    assert _selected_context is not None
 
     path = arguments.get("path")
     if not path:
@@ -554,6 +551,7 @@ def _handle_flux_check(arguments: dict[str, Any]) -> list[TextContent]:
     err = _require_context()
     if err:
         return [err]
+    assert _selected_context is not None
 
     success, output = flux_lint.run_flux_check(context=_selected_context)
 
@@ -565,6 +563,7 @@ def _handle_flux_status(arguments: dict[str, Any]) -> list[TextContent]:
     err = _require_context()
     if err:
         return [err]
+    assert _selected_context is not None
 
     success, output = flux_lint.get_flux_status(context=_selected_context)
 
@@ -578,6 +577,7 @@ def _handle_kustomize_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     err = _require_context()
     if err:
         return [err]
+    assert _selected_context is not None
 
     path = arguments.get("path")
     if not path:
@@ -601,6 +601,7 @@ def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     err = _require_context()
     if err:
         return [err]
+    assert _selected_context is not None
 
     chart_path = arguments.get("chart_path")
     if not chart_path:
@@ -670,7 +671,7 @@ _HANDLERS: dict[str, Callable[[dict[str, Any]], list[TextContent]]] = {
 }
 
 
-@app.call_tool()
+@app.call_tool()  # type: ignore[untyped-decorator]
 async def call_tool(
     name: str, arguments: dict[str, Any] | None = None
 ) -> Sequence[TextContent]:
