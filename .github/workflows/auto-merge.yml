@@ -35,7 +35,7 @@ jobs:
 
   auto-merge-release:
     runs-on: ubuntu-latest
-    if: github.actor == 'github-actions[bot]' && startsWith(github.head_ref, 'release/')
+    if: github.event.pull_request.user.login == 'github-actions[bot]' && startsWith(github.head_ref, 'release/')
 
     steps:
       - name: Generate App token
