@@ -24,7 +24,9 @@ jobs:
           python-version: "3.13"
 
       - name: Generate lockfile
-        run: pip install --dry-run --report requirements.json . && python -c "
+        run: |
+          pip install --dry-run --report requirements.json .
+          python -c "
           import json, pathlib
           report = json.loads(pathlib.Path('requirements.json').read_text())
           lines = []
