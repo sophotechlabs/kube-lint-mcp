@@ -52,7 +52,8 @@ jobs:
     environment: pypi
     permissions:
       id-token: write
-      contents: read
+      contents: write
+      attestations: write
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -69,6 +70,23 @@ jobs:
       - name: Build package
         run: python -m build
 
+      - name: Generate Python SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          artifact-name: sbom-python-${{ needs.create-release.outputs.version }}.spdx.json
+          output-file: sbom-python.spdx.json
+
+      - name: Attest build provenance (Python package)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+
+      - name: Upload SBOM to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ needs.create-release.outputs.version }}" sbom-python.spdx.json --clobber
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
 
@@ -76,7 +94,7 @@ jobs:
     needs: create-release
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
       id-token: write
       attestations: write
@@ -144,3 +162,8 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+
+      - name: Upload Docker SBOM to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ needs.create-release.outputs.version }}" sbom.spdx.json --clobber

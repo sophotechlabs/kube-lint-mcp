@@ -10,6 +10,6 @@ permissions:
 jobs:
   auto-approve:
     runs-on: ubuntu-latest
-    if: github.actor == 'archy-rock3t-cloud' || github.actor == 'dependabot[bot]'
+    if: github.actor == 'archy-rock3t-cloud' || github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]'
     steps:
       - uses: hmarr/auto-approve-action@8f929096a962e83ccdfa8afcf855f39f12d4dac7 # v4
