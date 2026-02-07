@@ -1122,3 +1122,152 @@ async def test_kubeconform_shows_skipped_resources(mock_run):
 
     assert "SKIPPED" in text
     assert "Safe to commit" in text
+
+
+# yaml_validate integration tests
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_missing_path():
+    result = await server.call_tool("yaml_validate", {})
+
+    assert "path" in result[0].text.lower()
+    assert "required" in result[0].text.lower()
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_works_without_context():
+    """yaml_validate does NOT require select_kube_context."""
+    server._selected_context = None
+
+    result = await server.call_tool("yaml_validate", {"path": "/tmp/nonexistent"})
+
+    assert "Error: No context selected" not in result[0].text
+    assert "YAML Syntax Validation" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_no_files(tmp_path):
+    result = await server.call_tool("yaml_validate", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "No YAML files found" in text
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_all_valid(tmp_path):
+    (tmp_path / "a.yaml").write_text("apiVersion: v1\nkind: ConfigMap\n")
+    (tmp_path / "b.yaml").write_text("key: value\n")
+
+    result = await server.call_tool("yaml_validate", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "PASS" in text
+    assert "2 valid, 0 invalid" in text
+    assert "All YAML files are syntactically valid" in text
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_has_invalid(tmp_path):
+    (tmp_path / "good.yaml").write_text("key: value\n")
+    (tmp_path / "bad.yaml").write_text("key: [\n  unclosed\n")
+
+    result = await server.call_tool("yaml_validate", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "FAIL" in text
+    assert "1 valid, 1 invalid" in text
+    assert "DO NOT COMMIT" in text
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_duplicate_key(tmp_path):
+    (tmp_path / "dup.yaml").write_text("key: value1\nkey: value2\n")
+
+    result = await server.call_tool("yaml_validate", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "FAIL" in text
+    assert "duplicate" in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_valid_with_tab_warnings(tmp_path):
+    """Hits the 'PASS with warnings' formatter branch."""
+    from kube_lint_mcp import yaml_lint
+
+    fake_result = yaml_lint.YamlValidationResult(
+        path=str(tmp_path),
+        passed=True,
+        files=[
+            yaml_lint.YamlFileResult(
+                file=str(tmp_path / "tabs.yaml"),
+                valid=True,
+                warnings=["line 2: tab character used for indentation"],
+                document_count=1,
+            ),
+        ],
+        total_files=1,
+        valid_files=1,
+        invalid_files=0,
+    )
+
+    with mock.patch("kube_lint_mcp.yaml_lint.validate_yaml", return_value=fake_result):
+        result = await server.call_tool("yaml_validate", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "PASS with warnings" in text
+    assert "Warning" in text
+    assert "tab" in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_fail_with_warnings(tmp_path):
+    """Hits the FAIL branch that also has warnings (errors + warnings on same file)."""
+    from kube_lint_mcp import yaml_lint
+
+    fake_result = yaml_lint.YamlValidationResult(
+        path=str(tmp_path),
+        passed=False,
+        files=[
+            yaml_lint.YamlFileResult(
+                file=str(tmp_path / "bad.yaml"),
+                valid=False,
+                errors=["line 3, column 1: syntax error"],
+                warnings=["line 1: tab character used for indentation"],
+                document_count=0,
+            ),
+        ],
+        total_files=1,
+        valid_files=0,
+        invalid_files=1,
+    )
+
+    with mock.patch("kube_lint_mcp.yaml_lint.validate_yaml", return_value=fake_result):
+        result = await server.call_tool("yaml_validate", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert "FAIL" in text
+    assert "Error: line 3" in text
+    assert "Warning: line 1" in text
+    assert "DO NOT COMMIT" in text
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_shows_path(tmp_path):
+    result = await server.call_tool("yaml_validate", {"path": str(tmp_path)})
+    text = result[0].text
+
+    assert f"Path: {tmp_path}" in text
+
+
+@pytest.mark.asyncio
+async def test_yaml_validate_single_file(tmp_path):
+    f = tmp_path / "deploy.yaml"
+    f.write_text("apiVersion: v1\nkind: ConfigMap\n")
+
+    result = await server.call_tool("yaml_validate", {"path": str(f)})
+    text = result[0].text
+
+    assert "1 valid, 0 invalid" in text
+    assert "PASS" in text
