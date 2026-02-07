@@ -40,7 +40,8 @@ jobs:
         run: sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' pyproject.toml
 
       - name: Bump version in server.json
-        run: sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
+        run: |
+          sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
 
       - name: Create release PR
         env:
