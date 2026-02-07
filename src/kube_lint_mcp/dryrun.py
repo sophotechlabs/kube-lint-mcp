@@ -5,7 +5,6 @@ import os
 import subprocess
 from dataclasses import dataclass
 
-
 logger = logging.getLogger(__name__)
 
 KUBECTL_TIMEOUT = int(os.getenv("KUBE_LINT_KUBECTL_TIMEOUT", "60"))
@@ -58,7 +57,8 @@ def kubectl_dry_run(
         DryRunResult with client/server pass/fail and any deprecation warnings
     """
     ctx_args = build_ctx_args(context)
-    source_args = ["-f", "-"] if stdin_data is not None else ["-f", file_path]
+    file_arg = "-" if stdin_data is not None else (file_path or "")
+    source_args = ["-f", file_arg]
 
     try:
         # Client dry-run

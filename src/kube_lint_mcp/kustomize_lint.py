@@ -2,12 +2,12 @@
 
 import logging
 import subprocess
-import yaml
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
 
 from kube_lint_mcp.dryrun import KUBECTL_TIMEOUT, kubectl_dry_run
-
 
 logger = logging.getLogger(__name__)
 

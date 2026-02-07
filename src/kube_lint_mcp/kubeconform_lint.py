@@ -6,7 +6,6 @@ import os
 import subprocess
 from dataclasses import dataclass, field
 
-
 logger = logging.getLogger(__name__)
 
 KUBECONFORM_TIMEOUT = int(os.getenv("KUBE_LINT_KUBECONFORM_TIMEOUT", "120"))
@@ -38,7 +37,7 @@ class KubeconformResult:
     error: str | None = None
 
 
-def _make_resource(r: dict) -> KubeconformResourceResult:
+def _make_resource(r: dict[str, str]) -> KubeconformResourceResult:
     """Create a KubeconformResourceResult from a parsed JSON dict."""
     return KubeconformResourceResult(
         filename=r.get("filename", ""),
