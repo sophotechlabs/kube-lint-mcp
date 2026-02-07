@@ -23,6 +23,7 @@ async def test_list_tools_returns_all_tools():
         "kustomize_dryrun",
         "helm_dryrun",
         "kubeconform_validate",
+        "yaml_validate",
     }
 
 
