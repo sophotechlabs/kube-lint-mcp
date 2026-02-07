@@ -1,0 +1,27 @@
+ci:
+  - changed-files:
+      - any-glob-to-any-file: .github/**
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: tests/**
+
+python:
+  - changed-files:
+      - any-glob-to-any-file: src/**/*.py
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file: Dockerfile
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.md"
+          - docs/**
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - pyproject.toml
+          - requirements*.txt
