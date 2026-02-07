@@ -119,12 +119,6 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Log in to GHCR
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -138,9 +132,7 @@ jobs:
           VERSION="${{ needs.create-release.outputs.version }}"
           MAJOR_MINOR="${VERSION%.*}"
           GHCR="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          DHB="${{ env.IMAGE_NAME }}"
           TAGS="${GHCR}:${VERSION},${GHCR}:${MAJOR_MINOR},${GHCR}:latest"
-          TAGS="${TAGS},${DHB}:${VERSION},${DHB}:${MAJOR_MINOR},${DHB}:latest"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
