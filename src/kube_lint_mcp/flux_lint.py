@@ -1,10 +1,17 @@
 """FluxCD and Kubernetes manifest validation utilities."""
 
+import logging
+import os
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass
 
 from kube_lint_mcp.dryrun import build_ctx_args, kubectl_dry_run
+
+
+logger = logging.getLogger(__name__)
+
+FLUX_TIMEOUT = int(os.getenv("KUBE_LINT_FLUX_TIMEOUT", "60"))
 
 
 @dataclass
@@ -96,8 +103,9 @@ def validate_manifest(file_path: str, context: str | None = None) -> ValidationR
     Returns:
         ValidationResult with pass/fail status and any errors
     """
+    logger.debug("Validating manifest: %s", file_path)
     dr = kubectl_dry_run(file_path, context=context)
-    return ValidationResult(
+    result = ValidationResult(
         file=file_path,
         client_passed=dr.client_passed,
         server_passed=dr.server_passed,
@@ -105,6 +113,13 @@ def validate_manifest(file_path: str, context: str | None = None) -> ValidationR
         server_error=dr.server_error,
         warnings=dr.warnings,
     )
+    if not result.client_passed:
+        logger.warning("Client dry-run failed for %s: %s", file_path, result.client_error)
+    elif not result.server_passed:
+        logger.warning("Server dry-run failed for %s: %s", file_path, result.server_error)
+    else:
+        logger.debug("Manifest validated successfully: %s", file_path)
+    return result
 
 
 def validate_manifests(path: str, context: str | None = None) -> list[ValidationResult]:
@@ -138,15 +153,21 @@ def run_flux_check(context: str | None = None) -> tuple[bool, str]:
         Tuple of (success, output)
     """
     ctx_args = build_ctx_args(context)
+    logger.debug("Running flux check with context: %s", context)
     try:
         result = subprocess.run(
-            ["flux", *ctx_args, "check"], capture_output=True, text=True, timeout=60
+            ["flux", *ctx_args, "check"],
+            capture_output=True,
+            text=True,
+            timeout=FLUX_TIMEOUT,
         )
         output = result.stdout + result.stderr
         return result.returncode == 0, output.strip()
     except subprocess.TimeoutExpired:
+        logger.error("flux check timed out after %ds", FLUX_TIMEOUT)
         return False, "Timeout running flux check"
     except FileNotFoundError:
+        logger.error("flux CLI not found on PATH")
         return False, "flux CLI not found"
 
 
@@ -160,16 +181,19 @@ def get_flux_status(context: str | None = None) -> tuple[bool, str]:
         Tuple of (success, output)
     """
     ctx_args = build_ctx_args(context)
+    logger.debug("Getting flux status with context: %s", context)
     try:
         result = subprocess.run(
             ["flux", *ctx_args, "get", "all", "-A"],
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=FLUX_TIMEOUT,
         )
         output = result.stdout + result.stderr
         return result.returncode == 0, output.strip()
     except subprocess.TimeoutExpired:
+        logger.error("flux get all timed out after %ds", FLUX_TIMEOUT)
         return False, "Timeout getting flux status"
     except FileNotFoundError:
+        logger.error("flux CLI not found on PATH")
         return False, "flux CLI not found"
