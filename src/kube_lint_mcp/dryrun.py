@@ -1,10 +1,14 @@
 """Shared kubectl utilities for dry-run validation."""
 
+import logging
+import os
 import subprocess
 from dataclasses import dataclass
 
 
-KUBECTL_TIMEOUT = 60
+logger = logging.getLogger(__name__)
+
+KUBECTL_TIMEOUT = int(os.getenv("KUBE_LINT_KUBECTL_TIMEOUT", "60"))
 
 
 @dataclass
@@ -23,12 +27,16 @@ def build_ctx_args(context: str | None) -> list[str]:
     return ["--context", context] if context else []
 
 
-def parse_deprecation_warnings(output: str) -> list[str]:
-    """Extract deprecation warning lines from kubectl output."""
+def parse_warnings(output: str) -> list[str]:
+    """Extract warning and deprecation lines from kubectl output."""
     warnings = []
     for line in output.split("\n"):
-        if "deprecated" in line.lower():
-            warnings.append(line.strip())
+        stripped = line.strip()
+        if not stripped:
+            continue
+        line_lower = stripped.lower()
+        if "deprecated" in line_lower or line_lower.startswith("warning:"):
+            warnings.append(stripped)
     return warnings
 
 
@@ -54,6 +62,10 @@ def kubectl_dry_run(
 
     try:
         # Client dry-run
+        logger.debug(
+            "Running client dry-run: kubectl %s apply --dry-run=client %s",
+            " ".join(ctx_args), " ".join(source_args),
+        )
         client_result = subprocess.run(
             ["kubectl", *ctx_args, "apply", "--dry-run=client", *source_args],
             capture_output=True,
@@ -65,6 +77,7 @@ def kubectl_dry_run(
         client_error = client_result.stderr.strip() if not client_passed else None
 
         if not client_passed:
+            logger.debug("Client dry-run failed: %s", client_error)
             return DryRunResult(
                 client_passed=False,
                 server_passed=False,
@@ -72,6 +85,10 @@ def kubectl_dry_run(
             )
 
         # Server dry-run
+        logger.debug(
+            "Running server dry-run: kubectl %s apply --dry-run=server %s",
+            " ".join(ctx_args), " ".join(source_args),
+        )
         server_result = subprocess.run(
             ["kubectl", *ctx_args, "apply", "--dry-run=server", *source_args],
             capture_output=True,
@@ -83,7 +100,10 @@ def kubectl_dry_run(
         server_error = server_result.stderr.strip() if not server_passed else None
 
         output = server_result.stdout + server_result.stderr
-        warnings = parse_deprecation_warnings(output)
+        warnings = parse_warnings(output)
+
+        if warnings:
+            logger.warning("Warnings detected: %s", warnings)
 
         return DryRunResult(
             client_passed=True,
@@ -93,12 +113,14 @@ def kubectl_dry_run(
         )
 
     except subprocess.TimeoutExpired:
+        logger.error("kubectl dry-run timed out after %ds", timeout)
         return DryRunResult(
             client_passed=False,
             server_passed=False,
             client_error="Timeout during validation",
         )
     except FileNotFoundError:
+        logger.error("kubectl not found on PATH")
         return DryRunResult(
             client_passed=False,
             server_passed=False,

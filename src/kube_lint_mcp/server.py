@@ -1,9 +1,11 @@
 """MCP server for Kubernetes manifest validation."""
 
 import asyncio
+import logging
 import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 try:
     from mcp.server import Server
@@ -19,6 +21,9 @@ from kube_lint_mcp import flux_lint
 from kube_lint_mcp import helm_lint
 from kube_lint_mcp import kubeconform_lint
 from kube_lint_mcp import kustomize_lint
+
+
+logger = logging.getLogger(__name__)
 
 # Create MCP server instance
 app = Server("kube-lint-mcp")
@@ -77,6 +82,224 @@ def _format_summary(passed: int, failed: int) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Output formatting (extracted from handlers for testability)
+# ---------------------------------------------------------------------------
+
+def _format_flux_results(
+    results: list[flux_lint.ValidationResult],
+    context: str,
+    path: str,
+) -> str:
+    """Format flux dry-run validation results into output text."""
+    lines = [
+        "FluxCD Dry-Run Validation",
+        f"Context: {context}",
+        f"Path: {path}",
+        "=" * 50,
+        "",
+    ]
+
+    passed = 0
+    failed = 0
+
+    for r in results:
+        lines.append(f"File: {r.file}")
+
+        if r.client_passed:
+            lines.append("  Client dry-run: PASS")
+        else:
+            step = _format_step("Client dry-run", False, r.client_error)
+            lines.extend(["  " + ln for ln in step])
+            failed += 1
+            lines.append("")
+            continue
+
+        if r.server_passed:
+            step = _format_step("Server dry-run", True, warnings=r.warnings)
+            lines.extend(["  " + ln for ln in step])
+            passed += 1
+        else:
+            step = _format_step("Server dry-run", False, r.server_error)
+            lines.extend(["  " + ln for ln in step])
+            failed += 1
+
+        lines.append("")
+
+    lines.extend(_format_summary(passed, failed))
+    return "\n".join(lines)
+
+
+def _format_kustomize_result(
+    result: kustomize_lint.KustomizeValidationResult,
+    context: str,
+    path: str,
+) -> str:
+    """Format kustomize validation result into output text."""
+    lines = [
+        "Kustomize Dry-Run Validation",
+        f"Context: {context}",
+        f"Path: {path}",
+        "=" * 50,
+        "",
+    ]
+
+    passed = 0
+    failed = 0
+
+    if result.build_passed:
+        lines.append(f"Kustomize build: PASS ({result.resource_count} resources)")
+        passed += 1
+    else:
+        lines.extend(_format_step("Kustomize build", False, result.build_error))
+        failed += 1
+    lines.append("")
+
+    lines.extend(
+        _format_step("Client dry-run", result.client_passed, result.client_error)
+    )
+    if result.client_passed:
+        passed += 1
+    else:
+        failed += 1
+    lines.append("")
+
+    lines.extend(
+        _format_step(
+            "Server dry-run", result.server_passed,
+            result.server_error, result.warnings,
+        )
+    )
+    if result.server_passed:
+        passed += 1
+    else:
+        failed += 1
+
+    lines.append("")
+    lines.extend(_format_summary(passed, failed))
+    return "\n".join(lines)
+
+
+def _format_helm_result(
+    result: helm_lint.HelmValidationResult,
+    context: str,
+    chart_path: str,
+    values_file: str | None,
+    namespace: str | None,
+) -> str:
+    """Format helm chart validation result into output text."""
+    lines = [
+        "Helm Chart Dry-Run Validation",
+        f"Context: {context}",
+        f"Chart: {chart_path}",
+    ]
+    if values_file:
+        lines.append(f"Values: {values_file}")
+    if namespace:
+        lines.append(f"Namespace: {namespace}")
+    lines.extend(["=" * 50, ""])
+
+    passed = 0
+    failed = 0
+
+    lines.extend(_format_step("Helm lint", result.lint_passed, result.lint_error))
+    if result.lint_passed:
+        passed += 1
+    else:
+        failed += 1
+    lines.append("")
+
+    if result.render_passed:
+        lines.append(f"Helm template: PASS ({result.resource_count} resources)")
+        passed += 1
+    else:
+        lines.extend(_format_step("Helm template", False, result.render_error))
+        failed += 1
+    lines.append("")
+
+    lines.extend(
+        _format_step("Client dry-run", result.client_passed, result.client_error)
+    )
+    if result.client_passed:
+        passed += 1
+    else:
+        failed += 1
+    lines.append("")
+
+    lines.extend(
+        _format_step(
+            "Server dry-run", result.server_passed,
+            result.server_error, result.warnings,
+        )
+    )
+    if result.server_passed:
+        passed += 1
+    else:
+        failed += 1
+
+    lines.append("")
+    lines.append("=" * 50)
+    if failed > 0:
+        lines.append("DO NOT COMMIT - Fix errors first!")
+    else:
+        lines.append("All validations passed. Safe to commit.")
+    return "\n".join(lines)
+
+
+def _format_kubeconform_result(
+    result: kubeconform_lint.KubeconformResult,
+    path: str,
+    kubernetes_version: str,
+    strict: bool,
+) -> str:
+    """Format kubeconform validation result into output text."""
+    lines = [
+        "Kubeconform Schema Validation",
+        f"Path: {path}",
+    ]
+    if kubernetes_version != "master":
+        lines.append(f"Kubernetes version: {kubernetes_version}")
+    if strict:
+        lines.append("Strict mode: enabled")
+    lines.extend(["=" * 50, ""])
+
+    if not result.resources:
+        lines.append("No resources found to validate.")
+    else:
+        for r in result.resources:
+            label = f"{r.kind}/{r.name}" if r.name else r.kind
+            api = f" ({r.version})" if r.version else ""
+
+            if r.status == "statusValid":
+                lines.append(f"  {label}{api}: PASS")
+            elif r.status == "statusInvalid":
+                lines.append(f"  {label}{api}: INVALID")
+                if r.msg:
+                    for msg_line in r.msg.splitlines():
+                        lines.append(f"    {msg_line}")
+            elif r.status == "statusError":
+                lines.append(f"  {label}{api}: ERROR")
+                if r.msg:
+                    for msg_line in r.msg.splitlines():
+                        lines.append(f"    {msg_line}")
+            elif r.status == "statusSkipped":
+                lines.append(f"  {label}{api}: SKIPPED")
+
+    lines.append("")
+    lines.append("=" * 50)
+    lines.append(
+        f"Summary: {result.valid} valid, {result.invalid} invalid,"
+        f" {result.errors} errors, {result.skipped} skipped"
+    )
+    lines.append("")
+
+    if result.passed:
+        lines.append("All validations passed. Safe to commit.")
+    else:
+        lines.append("DO NOT COMMIT - Fix schema errors first!")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Tool listing
 # ---------------------------------------------------------------------------
 
@@ -87,11 +310,11 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="select_kube_context",
             description=(
-                "Select the Kubernetes context for all subsequent operations."
-                " MUST be called before using any other tool."
-                " Does NOT mutate global kubeconfig — context is held in memory only."
-                " IMPORTANT: Do NOT call this automatically."
-                " Always list contexts first and ask the user which context to use."
+                "Select the Kubernetes context for all subsequent operations.\n"
+                "MUST be called before using any other tool.\n"
+                "Does NOT mutate global kubeconfig — context is held in memory only.\n"
+                "IMPORTANT: Do NOT call this automatically.\n"
+                "Always list contexts first and ask the user which context to use."
             ),
             inputSchema={
                 "type": "object",
@@ -107,21 +330,21 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="list_kube_contexts",
             description=(
-                "List available kubectl contexts."
-                " Use this to see available contexts,"
-                " then ALWAYS present the list to the user and ask them"
-                " which context they want to use before calling select_kube_context."
-                " NEVER automatically select a context without user confirmation."
+                "List available kubectl contexts.\n"
+                "Use this to see available contexts, then ALWAYS present the list\n"
+                "to the user and ask them which context they want to use before\n"
+                "calling select_kube_context.\n"
+                "NEVER automatically select a context without user confirmation."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="flux_dryrun",
             description=(
-                "Validate FluxCD manifests with kubectl dry-run (client + server)."
-                " ALWAYS use this before committing Flux YAML files"
-                " to prevent GitOps reconciliation failures."
-                " Requires select_kube_context to be called first."
+                "Validate FluxCD manifests with kubectl dry-run (client + server).\n"
+                "ALWAYS use this before committing Flux YAML files\n"
+                "to prevent GitOps reconciliation failures.\n"
+                "Requires select_kube_context to be called first."
             ),
             inputSchema={
                 "type": "object",
@@ -137,27 +360,27 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="flux_check",
             description=(
-                "Run 'flux check' to verify Flux installation and components health."
-                " Requires select_kube_context to be called first."
+                "Run 'flux check' to verify Flux installation and components health.\n"
+                "Requires select_kube_context to be called first."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="flux_status",
             description=(
-                "Get Flux reconciliation status for all resources across namespaces."
-                " Requires select_kube_context to be called first."
+                "Get Flux reconciliation status for all resources across namespaces.\n"
+                "Requires select_kube_context to be called first."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="kustomize_dryrun",
             description=(
-                "Validate Kustomize overlay by building and running kubectl dry-run"
-                " (client + server)."
-                " ALWAYS use this before committing Kustomize overlay changes"
-                " to prevent deployment failures."
-                " Requires select_kube_context to be called first."
+                "Validate Kustomize overlay by building and running kubectl dry-run\n"
+                "(client + server).\n"
+                "ALWAYS use this before committing Kustomize overlay changes\n"
+                "to prevent deployment failures.\n"
+                "Requires select_kube_context to be called first."
             ),
             inputSchema={
                 "type": "object",
@@ -176,10 +399,11 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="helm_dryrun",
             description=(
-                "Validate Helm chart by rendering and running kubectl dry-run (client + server)."
-                " ALWAYS use this before committing Helm chart changes"
-                " to prevent deployment failures."
-                " Requires select_kube_context to be called first."
+                "Validate Helm chart by rendering and running kubectl dry-run\n"
+                "(client + server).\n"
+                "ALWAYS use this before committing Helm chart changes\n"
+                "to prevent deployment failures.\n"
+                "Requires select_kube_context to be called first."
             ),
             inputSchema={
                 "type": "object",
@@ -207,10 +431,10 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="kubeconform_validate",
             description=(
-                "Validate Kubernetes manifests against JSON schemas offline"
-                " using kubeconform. Catches invalid fields, type mismatches,"
-                " and missing required fields without a live cluster."
-                " Does NOT require select_kube_context."
+                "Validate Kubernetes manifests against JSON schemas offline\n"
+                "using kubeconform. Catches invalid fields, type mismatches,\n"
+                "and missing required fields without a live cluster.\n"
+                "Does NOT require select_kube_context."
             ),
             inputSchema={
                 "type": "object",
@@ -273,6 +497,7 @@ def _handle_select_context(arguments: dict[str, Any]) -> list[TextContent]:
         return _text("\n".join(lines))
 
     _selected_context = ctx
+    logger.info("Context selected: %s", ctx)
     return _text(
         f"Context selected: {ctx}\n\n"
         "All subsequent operations will target this context "
@@ -322,43 +547,7 @@ def _handle_flux_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     if not results:
         return _text(f"No YAML files found in: {path}")
 
-    lines = [
-        "FluxCD Dry-Run Validation",
-        f"Context: {_selected_context}",
-        f"Path: {path}",
-        "=" * 50,
-        "",
-    ]
-
-    passed = 0
-    failed = 0
-
-    for r in results:
-        lines.append(f"File: {r.file}")
-
-        if r.client_passed:
-            lines.append("  Client dry-run: PASS")
-        else:
-            step = _format_step("Client dry-run", False, r.client_error)
-            lines.extend(["  " + ln for ln in step])
-            failed += 1
-            lines.append("")
-            continue
-
-        if r.server_passed:
-            step = _format_step("Server dry-run", True, warnings=r.warnings)
-            lines.extend(["  " + ln for ln in step])
-            passed += 1
-        else:
-            step = _format_step("Server dry-run", False, r.server_error)
-            lines.extend(["  " + ln for ln in step])
-            failed += 1
-
-        lines.append("")
-
-    lines.extend(_format_summary(passed, failed))
-
-    return _text("\n".join(lines))
+    return _text(_format_flux_results(results, _selected_context, path))
 
 
 def _handle_flux_check(arguments: dict[str, Any]) -> list[TextContent]:
@@ -405,49 +594,7 @@ def _handle_kustomize_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
         path=path, context=_selected_context,
     )
 
-    lines = [
-        "Kustomize Dry-Run Validation",
-        f"Context: {_selected_context}",
-        f"Path: {path}",
-        "=" * 50,
-        "",
-    ]
-
-    passed = 0
-    failed = 0
-
-    if result.build_passed:
-        lines.append(f"Kustomize build: PASS ({result.resource_count} resources)")
-        passed += 1
-    else:
-        lines.extend(_format_step("Kustomize build", False, result.build_error))
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        _format_step("Client dry-run", result.client_passed, result.client_error)
-    )
-    if result.client_passed:
-        passed += 1
-    else:
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        _format_step(
-            "Server dry-run", result.server_passed,
-            result.server_error, result.warnings,
-        )
-    )
-    if result.server_passed:
-        passed += 1
-    else:
-        failed += 1
-
-    lines.append("")
-    lines.extend(_format_summary(passed, failed))
-
-    return _text("\n".join(lines))
+    return _text(_format_kustomize_result(result, _selected_context, path))
 
 
 def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
@@ -479,64 +626,9 @@ def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
         release_name=release_name,
     )
 
-    lines = [
-        "Helm Chart Dry-Run Validation",
-        f"Context: {_selected_context}",
-        f"Chart: {chart_path}",
-    ]
-    if values_file:
-        lines.append(f"Values: {values_file}")
-    if namespace:
-        lines.append(f"Namespace: {namespace}")
-    lines.extend(["=" * 50, ""])
-
-    passed = 0
-    failed = 0
-
-    lines.extend(_format_step("Helm lint", result.lint_passed, result.lint_error))
-    if result.lint_passed:
-        passed += 1
-    else:
-        failed += 1
-    lines.append("")
-
-    if result.render_passed:
-        lines.append(f"Helm template: PASS ({result.resource_count} resources)")
-        passed += 1
-    else:
-        lines.extend(_format_step("Helm template", False, result.render_error))
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        _format_step("Client dry-run", result.client_passed, result.client_error)
+    return _text(
+        _format_helm_result(result, _selected_context, chart_path, values_file, namespace)
     )
-    if result.client_passed:
-        passed += 1
-    else:
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        _format_step(
-            "Server dry-run", result.server_passed,
-            result.server_error, result.warnings,
-        )
-    )
-    if result.server_passed:
-        passed += 1
-    else:
-        failed += 1
-
-    lines.append("")
-
-    lines.append("=" * 50)
-    if failed > 0:
-        lines.append("DO NOT COMMIT - Fix errors first!")
-    else:
-        lines.append("All validations passed. Safe to commit.")
-
-    return _text("\n".join(lines))
 
 
 def _handle_kubeconform_validate(arguments: dict[str, Any]) -> list[TextContent]:
@@ -557,59 +649,16 @@ def _handle_kubeconform_validate(arguments: dict[str, Any]) -> list[TextContent]
     if result.error:
         return _text(f"Error: {result.error}")
 
-    lines = [
-        "Kubeconform Schema Validation",
-        f"Path: {path}",
-    ]
-    if kubernetes_version != "master":
-        lines.append(f"Kubernetes version: {kubernetes_version}")
-    if strict:
-        lines.append("Strict mode: enabled")
-    lines.extend(["=" * 50, ""])
-
-    if not result.resources:
-        lines.append("No resources found to validate.")
-    else:
-        for r in result.resources:
-            label = f"{r.kind}/{r.name}" if r.name else r.kind
-            api = f" ({r.version})" if r.version else ""
-
-            if r.status == "statusValid":
-                lines.append(f"  {label}{api}: PASS")
-            elif r.status == "statusInvalid":
-                lines.append(f"  {label}{api}: INVALID")
-                if r.msg:
-                    for msg_line in r.msg.splitlines():
-                        lines.append(f"    {msg_line}")
-            elif r.status == "statusError":
-                lines.append(f"  {label}{api}: ERROR")
-                if r.msg:
-                    for msg_line in r.msg.splitlines():
-                        lines.append(f"    {msg_line}")
-            elif r.status == "statusSkipped":
-                lines.append(f"  {label}{api}: SKIPPED")
-
-    lines.append("")
-    lines.append("=" * 50)
-    lines.append(
-        f"Summary: {result.valid} valid, {result.invalid} invalid,"
-        f" {result.errors} errors, {result.skipped} skipped"
+    return _text(
+        _format_kubeconform_result(result, path, kubernetes_version, strict)
     )
-    lines.append("")
-
-    if result.passed:
-        lines.append("All validations passed. Safe to commit.")
-    else:
-        lines.append("DO NOT COMMIT - Fix schema errors first!")
-
-    return _text("\n".join(lines))
 
 
 # ---------------------------------------------------------------------------
 # Dispatch table + call_tool
 # ---------------------------------------------------------------------------
 
-_HANDLERS: dict[str, Any] = {
+_HANDLERS: dict[str, Callable[[dict[str, Any]], list[TextContent]]] = {
     "select_kube_context": _handle_select_context,
     "list_kube_contexts": _handle_list_contexts,
     "flux_dryrun": _handle_flux_dryrun,
@@ -636,7 +685,7 @@ async def call_tool(
     return await asyncio.to_thread(handler, arguments)
 
 
-async def main():  # pragma: no cover
+async def main() -> None:  # pragma: no cover
     """Run the MCP server."""
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())

@@ -1,12 +1,15 @@
 """Kustomize overlay validation utilities."""
 
+import logging
 import subprocess
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
 
-from kube_lint_mcp.dryrun import kubectl_dry_run
+from kube_lint_mcp.dryrun import KUBECTL_TIMEOUT, kubectl_dry_run
 
+
+logger = logging.getLogger(__name__)
 
 KUSTOMIZATION_FILENAMES = ("kustomization.yaml", "kustomization.yml", "Kustomization")
 
@@ -62,16 +65,18 @@ def validate_kustomization(
 
     try:
         # Step 1: Build with kubectl kustomize
+        logger.debug("Running kubectl kustomize %s", kustomize_dir)
         build_result = subprocess.run(
             ["kubectl", "kustomize", kustomize_dir],
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=KUBECTL_TIMEOUT,
         )
         build_passed = build_result.returncode == 0
         build_error = build_result.stderr.strip() if not build_passed else None
 
         if not build_passed:
+            logger.debug("Kustomize build failed: %s", build_error)
             return KustomizeValidationResult(
                 path=path,
                 build_passed=False,
@@ -107,6 +112,7 @@ def validate_kustomization(
         )
 
     except subprocess.TimeoutExpired:
+        logger.error("kubectl kustomize timed out after %ds", KUBECTL_TIMEOUT)
         return KustomizeValidationResult(
             path=path,
             build_passed=False,
@@ -115,6 +121,7 @@ def validate_kustomization(
             build_error="Timeout during validation",
         )
     except FileNotFoundError:
+        logger.error("kubectl not found on PATH")
         return KustomizeValidationResult(
             path=path,
             build_passed=False,

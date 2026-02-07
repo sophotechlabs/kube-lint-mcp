@@ -1,10 +1,15 @@
 """Offline schema validation using kubeconform."""
 
 import json
+import logging
+import os
 import subprocess
 from dataclasses import dataclass, field
 
-KUBECONFORM_TIMEOUT = 120
+
+logger = logging.getLogger(__name__)
+
+KUBECONFORM_TIMEOUT = int(os.getenv("KUBE_LINT_KUBECONFORM_TIMEOUT", "120"))
 
 
 @dataclass
@@ -33,6 +38,18 @@ class KubeconformResult:
     error: str | None = None
 
 
+def _make_resource(r: dict) -> KubeconformResourceResult:
+    """Create a KubeconformResourceResult from a parsed JSON dict."""
+    return KubeconformResourceResult(
+        filename=r.get("filename", ""),
+        kind=r.get("kind", ""),
+        name=r.get("name", ""),
+        version=r.get("version", ""),
+        status=r.get("status", ""),
+        msg=r.get("msg", ""),
+    )
+
+
 def _parse_output(stdout: str) -> list[KubeconformResourceResult]:
     """Parse kubeconform JSON output into resource results.
 
@@ -46,17 +63,7 @@ def _parse_output(stdout: str) -> list[KubeconformResourceResult]:
     try:
         data = json.loads(stdout)
         if isinstance(data, dict) and "resources" in data:
-            return [
-                KubeconformResourceResult(
-                    filename=r.get("filename", ""),
-                    kind=r.get("kind", ""),
-                    name=r.get("name", ""),
-                    version=r.get("version", ""),
-                    status=r.get("status", ""),
-                    msg=r.get("msg", ""),
-                )
-                for r in data["resources"]
-            ]
+            return [_make_resource(r) for r in data["resources"]]
     except (json.JSONDecodeError, TypeError):
         pass
 
@@ -69,16 +76,7 @@ def _parse_output(stdout: str) -> list[KubeconformResourceResult]:
         try:
             r = json.loads(line)
             if isinstance(r, dict) and "filename" in r:
-                resources.append(
-                    KubeconformResourceResult(
-                        filename=r.get("filename", ""),
-                        kind=r.get("kind", ""),
-                        name=r.get("name", ""),
-                        version=r.get("version", ""),
-                        status=r.get("status", ""),
-                        msg=r.get("msg", ""),
-                    )
-                )
+                resources.append(_make_resource(r))
         except (json.JSONDecodeError, TypeError):
             continue
 
@@ -115,6 +113,8 @@ def validate_manifests(
 
     cmd.append(path)
 
+    logger.debug("Running kubeconform: %s", " ".join(cmd))
+
     try:
         proc = subprocess.run(
             cmd,
@@ -123,12 +123,14 @@ def validate_manifests(
             timeout=KUBECONFORM_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
+        logger.error("kubeconform timed out after %ds", KUBECONFORM_TIMEOUT)
         return KubeconformResult(
             path=path,
             passed=False,
             error="Timeout during kubeconform validation",
         )
     except FileNotFoundError:
+        logger.error("kubeconform not found on PATH")
         return KubeconformResult(
             path=path,
             passed=False,
@@ -143,6 +145,11 @@ def validate_manifests(
     skipped = sum(1 for r in resources if r.status == "statusSkipped")
 
     passed = invalid == 0 and errors == 0
+
+    logger.debug(
+        "kubeconform results: %d valid, %d invalid, %d errors, %d skipped",
+        valid, invalid, errors, skipped,
+    )
 
     return KubeconformResult(
         path=path,
