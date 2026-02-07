@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kube-lint-mcp"
-version = "0.3.4"
+version = "0.3.5"
 description = "MCP server for Kubernetes manifest and Helm chart validation"
 readme = "README.md"
 license = "MIT"
