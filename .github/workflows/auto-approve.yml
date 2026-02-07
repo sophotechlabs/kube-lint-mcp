@@ -20,3 +20,13 @@ jobs:
       - uses: hmarr/auto-approve-action@8f929096a962e83ccdfa8afcf855f39f12d4dac7 # v4
         with:
           github-token: ${{ steps.app-token.outputs.token }}
+
+  auto-approve-release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'release/')
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: hmarr/auto-approve-action@8f929096a962e83ccdfa8afcf855f39f12d4dac7 # v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
