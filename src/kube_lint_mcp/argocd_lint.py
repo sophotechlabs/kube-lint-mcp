@@ -64,6 +64,38 @@ class ArgoAppDiffResult:
     error: str | None = None
 
 
+def _detect_argocd_namespace(context: str) -> str | None:
+    """Auto-detect the namespace where ArgoCD is installed.
+
+    Looks for the argocd-cm configmap across all namespaces.
+
+    Args:
+        context: kubectl context to use
+
+    Returns:
+        Namespace name if found, None otherwise
+    """
+    cmd = [
+        "kubectl", "get", "configmap", "argocd-cm",
+        "--all-namespaces",
+        "--context", context,
+        "-o", "jsonpath={.items[0].metadata.namespace}",
+    ]
+    logger.debug("Auto-detecting ArgoCD namespace: %s", " ".join(cmd))
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            ns = result.stdout.strip()
+            logger.debug("Auto-detected ArgoCD namespace: %s", ns)
+            return ns
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    logger.debug("Could not auto-detect ArgoCD namespace")
+    return None
+
+
 def _build_argocd_args(context: str, namespace: str | None = None) -> list[str]:
     """Build common ArgoCD CLI args.
 
@@ -108,6 +140,14 @@ def list_argocd_apps(
     Returns:
         ArgoAppListResult with list of app summaries
     """
+    if not namespace:
+        namespace = _detect_argocd_namespace(context)
+        if not namespace:
+            return ArgoAppListResult(
+                success=False,
+                error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
+                "Specify the namespace parameter explicitly.",
+            )
     base_args = _build_argocd_args(context, namespace)
     cmd = ["argocd", "app", "list", *base_args, "-o", "json"]
 
@@ -185,6 +225,14 @@ def get_argocd_app(
     Returns:
         ArgoAppGetResult with detailed app status
     """
+    if not namespace:
+        namespace = _detect_argocd_namespace(context)
+        if not namespace:
+            return ArgoAppGetResult(
+                success=False,
+                error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
+                "Specify the namespace parameter explicitly.",
+            )
     base_args = _build_argocd_args(context, namespace)
     cmd = ["argocd", "app", "get", app_name, *base_args, "-o", "json"]
 
@@ -294,6 +342,14 @@ def diff_argocd_app(
     Returns:
         ArgoAppDiffResult with sync status and diff output
     """
+    if not namespace:
+        namespace = _detect_argocd_namespace(context)
+        if not namespace:
+            return ArgoAppDiffResult(
+                success=False,
+                error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
+                "Specify the namespace parameter explicitly.",
+            )
     base_args = _build_argocd_args(context, namespace)
     cmd = ["argocd", "app", "diff", app_name, *base_args]
 

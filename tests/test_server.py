@@ -1278,6 +1278,8 @@ async def test_yaml_validate_single_file(tmp_path):
 
 # argocd_app_list integration tests
 
+# Simulates successful namespace auto-detection (kubectl get configmap argocd-cm)
+_DETECT_OK = subprocess.CompletedProcess(args=[], returncode=0, stdout="argocd", stderr="")
 
 ARGOCD_LIST_JSON = json.dumps([
     {
@@ -1354,9 +1356,10 @@ async def test_argocd_app_list_requires_context():
 async def test_argocd_app_list_success(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout=ARGOCD_LIST_JSON, stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_LIST_JSON, stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_list", {})
     text = result[0].text
@@ -1374,9 +1377,10 @@ async def test_argocd_app_list_success(mock_run):
 async def test_argocd_app_list_empty(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout="[]", stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_list", {})
     text = result[0].text
@@ -1405,9 +1409,10 @@ async def test_argocd_app_list_with_namespace(mock_run):
 async def test_argocd_app_list_error(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=1, stdout="", stderr="connection refused"
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="connection refused"),
+    ]
 
     result = await server.call_tool("argocd_app_list", {})
     text = result[0].text
@@ -1421,9 +1426,10 @@ async def test_argocd_app_list_error(mock_run):
 async def test_argocd_app_list_shows_context(mock_run):
     server._selected_context = "prod-cluster"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout="[]", stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_list", {})
     text = result[0].text
@@ -1457,9 +1463,10 @@ async def test_argocd_app_get_missing_app_name():
 async def test_argocd_app_get_success(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_get", {"app_name": "my-app"})
     text = result[0].text
@@ -1477,9 +1484,10 @@ async def test_argocd_app_get_success(mock_run):
 async def test_argocd_app_get_with_resources_and_conditions(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_get", {"app_name": "my-app"})
     text = result[0].text
@@ -1495,9 +1503,10 @@ async def test_argocd_app_get_with_resources_and_conditions(mock_run):
 async def test_argocd_app_get_with_health_message(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout=ARGOCD_GET_MINIMAL_JSON, stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_GET_MINIMAL_JSON, stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_get", {"app_name": "my-app"})
     text = result[0].text
@@ -1511,9 +1520,10 @@ async def test_argocd_app_get_with_health_message(mock_run):
 async def test_argocd_app_get_error(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=1, stdout="", stderr="app 'missing' not found"
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="app 'missing' not found"),
+    ]
 
     result = await server.call_tool("argocd_app_get", {"app_name": "missing"})
     text = result[0].text
@@ -1527,9 +1537,10 @@ async def test_argocd_app_get_error(mock_run):
 async def test_argocd_app_get_shows_context_and_app(mock_run):
     server._selected_context = "prod-cluster"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=ARGOCD_GET_JSON, stderr=""),
+    ]
 
     result = await server.call_tool(
         "argocd_app_get", {"app_name": "my-app"},
@@ -1566,9 +1577,10 @@ async def test_argocd_app_diff_missing_app_name():
 async def test_argocd_app_diff_in_sync(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout="", stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_diff", {"app_name": "my-app"})
     text = result[0].text
@@ -1583,9 +1595,10 @@ async def test_argocd_app_diff_has_diff(mock_run):
     server._selected_context = "test-ctx"
 
     diff_output = "===== apps/Deployment default/my-app ======\n  replicas: 2 -> 3"
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=1, stdout=diff_output, stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=1, stdout=diff_output, stderr=""),
+    ]
 
     result = await server.call_tool("argocd_app_diff", {"app_name": "my-app"})
     text = result[0].text
@@ -1599,9 +1612,10 @@ async def test_argocd_app_diff_has_diff(mock_run):
 async def test_argocd_app_diff_error(mock_run):
     server._selected_context = "test-ctx"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=2, stdout="", stderr="FATA[0000] app not found"
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=2, stdout="", stderr="FATA[0000] app not found"),
+    ]
 
     result = await server.call_tool("argocd_app_diff", {"app_name": "missing"})
     text = result[0].text
@@ -1615,9 +1629,10 @@ async def test_argocd_app_diff_error(mock_run):
 async def test_argocd_app_diff_shows_context_and_app(mock_run):
     server._selected_context = "prod-cluster"
 
-    mock_run.return_value = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout="", stderr=""
-    )
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+    ]
 
     result = await server.call_tool(
         "argocd_app_diff", {"app_name": "my-app"},
