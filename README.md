@@ -2,8 +2,10 @@
 
 [![CI](https://github.com/sophotechlabs/kube-lint-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/sophotechlabs/kube-lint-mcp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sophotechlabs/kube-lint-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/sophotechlabs/kube-lint-mcp)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/sophotechlabs/kube-lint-mcp/badge)](https://scorecard.dev/viewer/?uri=github.com/sophotechlabs/kube-lint-mcp)
 [![PyPI](https://img.shields.io/pypi/v/kube-lint-mcp.svg)](https://pypi.org/project/kube-lint-mcp/)
-[![Docker](https://ghcr-badge.egpl.dev/sophotechlabs/kube-lint-mcp/latest_tag?trim=major&label=docker)](https://github.com/sophotechlabs/kube-lint-mcp/pkgs/container/kube-lint-mcp)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/kube-lint-mcp.svg)](https://pypi.org/project/kube-lint-mcp/)
+[![Docker](https://img.shields.io/docker/v/sophotechlabs/kube-lint-mcp?label=docker&sort=semver)](https://hub.docker.com/r/sophotechlabs/kube-lint-mcp)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io)
@@ -59,7 +61,8 @@ pip install kube-lint-mcp
 The Docker image ships with kubectl, helm, flux, and kubeconform — no local installs needed.
 
 ```bash
-docker pull ghcr.io/sophotechlabs/kube-lint-mcp:latest
+docker pull sophotechlabs/kube-lint-mcp:latest
+# or: docker pull ghcr.io/sophotechlabs/kube-lint-mcp:latest
 ```
 
 > **Note**: If your kubeconfig uses external auth plugins (e.g. `gke-gcloud-auth-plugin`, `aws-iam-authenticator`), those binaries are not included in the image. Use the pip install method for those clusters, or embed tokens directly in your kubeconfig.
@@ -127,6 +130,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 | `helm_dryrun` | Lint, render, and dry-run a Helm chart end-to-end |
 | `flux_check` | Verify Flux installation health |
 | `flux_status` | Show Flux reconciliation status across namespaces |
+| `kubeconform_validate` | Offline schema validation — no cluster needed |
 
 ### Workflow
 
