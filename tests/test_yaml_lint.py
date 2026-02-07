@@ -10,7 +10,6 @@ from kube_lint_mcp.yaml_lint import (
     validate_yaml,
 )
 
-
 # _check_tabs tests
 
 

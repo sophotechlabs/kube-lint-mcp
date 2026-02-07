@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover
     )
     sys.exit(1)
 
-from kube_lint_mcp import flux_lint, helm_lint, kubeconform_lint, kustomize_lint
+from kube_lint_mcp import flux_lint, helm_lint, kubeconform_lint, kustomize_lint, yaml_lint
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +295,50 @@ def _format_kubeconform_result(
     return "\n".join(lines)
 
 
+def _format_yaml_result(
+    result: yaml_lint.YamlValidationResult,
+    path: str,
+) -> str:
+    """Format YAML validation result into output text."""
+    lines = [
+        "YAML Syntax Validation",
+        f"Path: {path}",
+        "=" * 50,
+        "",
+    ]
+
+    if not result.files:
+        lines.append("No YAML files found.")
+    else:
+        for f in result.files:
+            if f.valid and not f.warnings:
+                lines.append(f"  {f.file}: PASS ({f.document_count} documents)")
+            elif f.valid and f.warnings:
+                lines.append(f"  {f.file}: PASS with warnings ({f.document_count} documents)")
+                for w in f.warnings:
+                    lines.append(f"    Warning: {w}")
+            else:
+                lines.append(f"  {f.file}: FAIL")
+                for e in f.errors:
+                    lines.append(f"    Error: {e}")
+                for w in f.warnings:
+                    lines.append(f"    Warning: {w}")
+            lines.append("")
+
+    lines.append("=" * 50)
+    lines.append(
+        f"Summary: {result.valid_files} valid, {result.invalid_files} invalid"
+        f" ({result.total_files} files)"
+    )
+    lines.append("")
+
+    if result.passed:
+        lines.append("All YAML files are syntactically valid.")
+    else:
+        lines.append("DO NOT COMMIT - Fix YAML syntax errors first!")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Tool listing
 # ---------------------------------------------------------------------------
@@ -457,20 +501,42 @@ async def list_tools() -> list[Tool]:
                 "required": ["path"],
             },
         ),
+        Tool(
+            name="yaml_validate",
+            description=(
+                "Validate YAML syntax of Kubernetes manifest files.\n"
+                "Catches syntax errors, duplicate keys, and tab indentation.\n"
+                "Use this as a first-pass check before kubeconform or dry-run.\n"
+                "Does NOT require select_kube_context."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Path to YAML file or directory containing"
+                            " YAML files (required)"
+                        ),
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
     ]
 
 
-def _require_context() -> TextContent | None:
-    """Return an error TextContent if no context is selected, else None."""
+def _require_context() -> list[TextContent] | str:
+    """Return the selected context string, or an error response if none is selected."""
     if _selected_context is None:
-        return TextContent(
+        return [TextContent(
             type="text",
             text=(
                 "Error: No context selected. Call select_kube_context first."
                 "\n\nUse list_kube_contexts to see available contexts."
             ),
-        )
-    return None
+        )]
+    return _selected_context
 
 
 # ---------------------------------------------------------------------------
@@ -529,55 +595,51 @@ def _handle_list_contexts(arguments: dict[str, Any]) -> list[TextContent]:
 
 
 def _handle_flux_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
-    err = _require_context()
-    if err:
-        return [err]
-    assert _selected_context is not None
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
 
     path = arguments.get("path")
     if not path:
         return _text("Error: 'path' parameter is required")
     path = _normalize_path(path)
 
-    results = flux_lint.validate_manifests(path, context=_selected_context)
+    results = flux_lint.validate_manifests(path, context=ctx)
 
     if not results:
         return _text(f"No YAML files found in: {path}")
 
-    return _text(_format_flux_results(results, _selected_context, path))
+    return _text(_format_flux_results(results, ctx, path))
 
 
 def _handle_flux_check(arguments: dict[str, Any]) -> list[TextContent]:
-    err = _require_context()
-    if err:
-        return [err]
-    assert _selected_context is not None
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
 
-    success, output = flux_lint.run_flux_check(context=_selected_context)
+    success, output = flux_lint.run_flux_check(context=ctx)
 
     status = "Flux Check: HEALTHY" if success else "Flux Check: UNHEALTHY"
-    return _text(f"Context: {_selected_context}\n{status}\n\n{output}")
+    return _text(f"Context: {ctx}\n{status}\n\n{output}")
 
 
 def _handle_flux_status(arguments: dict[str, Any]) -> list[TextContent]:
-    err = _require_context()
-    if err:
-        return [err]
-    assert _selected_context is not None
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
 
-    success, output = flux_lint.get_flux_status(context=_selected_context)
+    success, output = flux_lint.get_flux_status(context=ctx)
 
     if success:
-        return _text(f"Context: {_selected_context}\nFlux Status:\n\n{output}")
+        return _text(f"Context: {ctx}\nFlux Status:\n\n{output}")
     else:
-        return _text(f"Context: {_selected_context}\nError getting Flux status:\n\n{output}")
+        return _text(f"Context: {ctx}\nError getting Flux status:\n\n{output}")
 
 
 def _handle_kustomize_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
-    err = _require_context()
-    if err:
-        return [err]
-    assert _selected_context is not None
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
 
     path = arguments.get("path")
     if not path:
@@ -591,17 +653,16 @@ def _handle_kustomize_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
         )
 
     result = kustomize_lint.validate_kustomization(
-        path=path, context=_selected_context,
+        path=path, context=ctx,
     )
 
-    return _text(_format_kustomize_result(result, _selected_context, path))
+    return _text(_format_kustomize_result(result, ctx, path))
 
 
 def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
-    err = _require_context()
-    if err:
-        return [err]
-    assert _selected_context is not None
+    ctx = _require_context()
+    if isinstance(ctx, list):
+        return ctx
 
     chart_path = arguments.get("chart_path")
     if not chart_path:
@@ -622,13 +683,13 @@ def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
     result = helm_lint.validate_helm_chart(
         chart_path=chart_path,
         values_file=values_file,
-        context=_selected_context,
+        context=ctx,
         namespace=namespace,
         release_name=release_name,
     )
 
     return _text(
-        _format_helm_result(result, _selected_context, chart_path, values_file, namespace)
+        _format_helm_result(result, ctx, chart_path, values_file, namespace)
     )
 
 
@@ -655,6 +716,17 @@ def _handle_kubeconform_validate(arguments: dict[str, Any]) -> list[TextContent]
     )
 
 
+def _handle_yaml_validate(arguments: dict[str, Any]) -> list[TextContent]:
+    path = arguments.get("path")
+    if not path:
+        return _text("Error: 'path' parameter is required")
+    path = _normalize_path(path)
+
+    result = yaml_lint.validate_yaml(path)
+
+    return _text(_format_yaml_result(result, path))
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table + call_tool
 # ---------------------------------------------------------------------------
@@ -668,6 +740,7 @@ _HANDLERS: dict[str, Callable[[dict[str, Any]], list[TextContent]]] = {
     "kustomize_dryrun": _handle_kustomize_dryrun,
     "helm_dryrun": _handle_helm_dryrun,
     "kubeconform_validate": _handle_kubeconform_validate,
+    "yaml_validate": _handle_yaml_validate,
 }
 
 
