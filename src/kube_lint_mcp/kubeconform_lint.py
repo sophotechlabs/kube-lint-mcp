@@ -148,7 +148,10 @@ def validate_manifests(
 
     logger.debug(
         "kubeconform results: %d valid, %d invalid, %d errors, %d skipped",
-        valid, invalid, errors, skipped,
+        valid,
+        invalid,
+        errors,
+        skipped,
     )
 
     return KubeconformResult(
