@@ -1,6 +1,8 @@
 # ---- Stage 1: Build + install ----
 FROM python:3.13-slim AS builder
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 ARG TARGETARCH
 
 ARG KUBECTL_VERSION=1.32.1
@@ -8,6 +10,7 @@ ARG HELM_VERSION=3.17.1
 ARG FLUX_VERSION=2.4.0
 ARG KUBECONFORM_VERSION=0.6.7
 
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tools
