@@ -3,7 +3,7 @@ from unittest import mock
 
 from kube_lint_mcp.dryrun import (
     build_ctx_args,
-    parse_deprecation_warnings,
+    parse_warnings,
     kubectl_dry_run,
     KUBECTL_TIMEOUT,
 )
@@ -20,25 +20,36 @@ def test_build_ctx_args_without_context():
     assert build_ctx_args(None) == []
 
 
-# parse_deprecation_warnings tests
+# parse_warnings tests
 
 
-def test_parse_deprecation_warnings_finds_warnings():
+def test_parse_warnings_finds_deprecation_warnings():
     output = (
         "configmap/test configured\n"
         "Warning: policy/v1beta1 PodSecurityPolicy is deprecated\n"
         "Warning: batch/v1beta1 CronJob is deprecated\n"
     )
-    result = parse_deprecation_warnings(output)
+    result = parse_warnings(output)
 
     assert len(result) == 2
     assert "PodSecurityPolicy is deprecated" in result[0]
     assert "CronJob is deprecated" in result[1]
 
 
-def test_parse_deprecation_warnings_empty():
+def test_parse_warnings_catches_non_deprecation_warnings():
+    output = (
+        "configmap/test configured\n"
+        "Warning: unknown field spec.foo\n"
+    )
+    result = parse_warnings(output)
+
+    assert len(result) == 1
+    assert "unknown field spec.foo" in result[0]
+
+
+def test_parse_warnings_empty():
     output = "configmap/test configured\nservice/test configured\n"
-    result = parse_deprecation_warnings(output)
+    result = parse_warnings(output)
 
     assert result == []
 

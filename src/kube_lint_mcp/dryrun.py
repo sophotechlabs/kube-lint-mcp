@@ -62,8 +62,10 @@ def kubectl_dry_run(
 
     try:
         # Client dry-run
-        logger.debug("Running client dry-run: kubectl %s apply --dry-run=client %s",
-                      " ".join(ctx_args), " ".join(source_args))
+        logger.debug(
+            "Running client dry-run: kubectl %s apply --dry-run=client %s",
+            " ".join(ctx_args), " ".join(source_args),
+        )
         client_result = subprocess.run(
             ["kubectl", *ctx_args, "apply", "--dry-run=client", *source_args],
             capture_output=True,
@@ -83,8 +85,10 @@ def kubectl_dry_run(
             )
 
         # Server dry-run
-        logger.debug("Running server dry-run: kubectl %s apply --dry-run=server %s",
-                      " ".join(ctx_args), " ".join(source_args))
+        logger.debug(
+            "Running server dry-run: kubectl %s apply --dry-run=server %s",
+            " ".join(ctx_args), " ".join(source_args),
+        )
         server_result = subprocess.run(
             ["kubectl", *ctx_args, "apply", "--dry-run=server", *source_args],
             capture_output=True,

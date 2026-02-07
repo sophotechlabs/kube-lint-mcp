@@ -230,6 +230,40 @@ def test_validate_helm_chart_kubectl_not_found(mock_run, tmp_path):
 
 
 @mock.patch("subprocess.run")
+def test_validate_helm_chart_template_not_found(mock_run, tmp_path):
+    (tmp_path / "Chart.yaml").write_text("name: test")
+    mock_run.side_effect = [
+        # lint succeeds
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
+        # template raises FileNotFoundError
+        FileNotFoundError("helm"),
+    ]
+
+    result = helm_lint.validate_helm_chart(str(tmp_path))
+
+    assert result.lint_passed is True
+    assert result.render_passed is False
+    assert "helm not found" in result.render_error
+
+
+@mock.patch("subprocess.run")
+def test_validate_helm_chart_template_timeout(mock_run, tmp_path):
+    (tmp_path / "Chart.yaml").write_text("name: test")
+    mock_run.side_effect = [
+        # lint succeeds
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
+        # template times out
+        subprocess.TimeoutExpired(cmd="helm", timeout=60),
+    ]
+
+    result = helm_lint.validate_helm_chart(str(tmp_path))
+
+    assert result.lint_passed is True
+    assert result.render_passed is False
+    assert "Timeout" in result.render_error
+
+
+@mock.patch("subprocess.run")
 def test_validate_helm_chart_malformed_rendered_yaml(mock_run, tmp_path):
     (tmp_path / "Chart.yaml").write_text("name: test")
     mock_run.side_effect = [

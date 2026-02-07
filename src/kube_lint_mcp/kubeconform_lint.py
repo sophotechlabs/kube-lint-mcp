@@ -146,8 +146,10 @@ def validate_manifests(
 
     passed = invalid == 0 and errors == 0
 
-    logger.debug("kubeconform results: %d valid, %d invalid, %d errors, %d skipped",
-                  valid, invalid, errors, skipped)
+    logger.debug(
+        "kubeconform results: %d valid, %d invalid, %d errors, %d skipped",
+        valid, invalid, errors, skipped,
+    )
 
     return KubeconformResult(
         path=path,

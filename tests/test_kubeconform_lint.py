@@ -4,9 +4,40 @@ from unittest import mock
 
 from kube_lint_mcp.kubeconform_lint import (
     KUBECONFORM_TIMEOUT,
+    _make_resource,
     _parse_output,
     validate_manifests,
 )
+
+
+# _make_resource tests
+
+
+def test_make_resource_from_dict():
+    r = _make_resource({
+        "filename": "deploy.yaml",
+        "kind": "Deployment",
+        "name": "my-app",
+        "version": "apps/v1",
+        "status": "statusValid",
+        "msg": "",
+    })
+
+    assert r.kind == "Deployment"
+    assert r.name == "my-app"
+    assert r.version == "apps/v1"
+    assert r.status == "statusValid"
+
+
+def test_make_resource_defaults_on_missing_keys():
+    r = _make_resource({})
+
+    assert r.filename == ""
+    assert r.kind == ""
+    assert r.name == ""
+    assert r.version == ""
+    assert r.status == ""
+    assert r.msg == ""
 
 
 # _parse_output tests
@@ -66,6 +97,15 @@ def test_parse_output_malformed_json():
     resources = _parse_output("this is not json\nalso not json")
 
     assert resources == []
+
+
+def test_parse_output_skips_blank_lines_in_jsonl():
+    stdout = _make_resource_json() + "\n\n" + _make_resource_json(
+        kind="Service", name="svc",
+    )
+    resources = _parse_output(stdout)
+
+    assert len(resources) == 2
 
 
 def test_parse_output_mixed_valid_and_garbage():

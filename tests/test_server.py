@@ -1082,3 +1082,42 @@ async def test_kubeconform_no_resources(mock_run):
     text = result[0].text
 
     assert "No resources found" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_shows_error_resources(mock_run):
+    stdout = _kubeconform_resource(
+        status="statusError", msg="could not download schema",
+    )
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout=stdout, stderr="",
+    )
+
+    result = await server.call_tool(
+        "kubeconform_validate", {"path": "/tmp/test"},
+    )
+    text = result[0].text
+
+    assert "ERROR" in text
+    assert "could not download schema" in text
+    assert "DO NOT COMMIT" in text
+
+
+@pytest.mark.asyncio
+@mock.patch("subprocess.run")
+async def test_kubeconform_shows_skipped_resources(mock_run):
+    stdout = _kubeconform_resource(
+        status="statusSkipped", kind="MyCRD", name="x",
+    )
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=stdout, stderr="",
+    )
+
+    result = await server.call_tool(
+        "kubeconform_validate", {"path": "/tmp/test"},
+    )
+    text = result[0].text
+
+    assert "SKIPPED" in text
+    assert "Safe to commit" in text
