@@ -1,14 +1,12 @@
-name: Auto-merge Dependabot
+name: Auto-merge
 
 on:
   pull_request:
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: read-all
 
 jobs:
-  auto-merge:
+  auto-merge-dependabot:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
 
@@ -19,8 +17,37 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Auto-merge minor and patch updates
+      - name: Generate App token
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Approve and auto-merge
         if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --squash --repo "${{ github.repository }}"
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr review "${{ github.event.pull_request.number }}" --approve --repo "${{ github.repository }}"
+          gh pr merge "${{ github.event.pull_request.number }}" --auto --squash --repo "${{ github.repository }}"
+
+  auto-merge-release:
+    runs-on: ubuntu-latest
+    if: github.actor == 'github-actions[bot]' && startsWith(github.head_ref, 'release/')
+
+    steps:
+      - name: Generate App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Approve and auto-merge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr review "${{ github.event.pull_request.number }}" --approve --repo "${{ github.repository }}"
+          gh pr merge "${{ github.event.pull_request.number }}" --auto --squash --repo "${{ github.repository }}"
