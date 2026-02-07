@@ -1,0 +1,22 @@
+name: Hadolint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile

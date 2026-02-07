@@ -1,0 +1,37 @@
+name: Bandit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - src/**
+  pull_request:
+    branches: [main]
+    paths:
+      - src/**
+
+permissions:
+  security-events: write
+  contents: read
+
+jobs:
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Bandit
+        run: pip install bandit[sarif]
+
+      - name: Run Bandit
+        run: bandit -r src/ -f sarif -o bandit-results.sarif || true
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: bandit-results.sarif

@@ -1,0 +1,33 @@
+name: Dockle
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - pyproject.toml
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to DHI (base images)
+        uses: docker/login-action@v3
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build image for scanning
+        run: docker build -t kube-lint-mcp:scan .
+
+      - name: Run Dockle
+        uses: erzz/dockle-action@v1
+        with:
+          image: kube-lint-mcp:scan
+          failure-threshold: FATAL
