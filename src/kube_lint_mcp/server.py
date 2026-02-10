@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import sys
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,11 @@ app = Server("kube-lint-mcp")
 
 # In-memory context selection — no global kubeconfig mutation
 _selected_context: str | None = None
+_contexts_listed_at: float | None = None  # timestamp when list_kube_contexts was called
+
+# Minimum seconds between list_kube_contexts and select_kube_context.
+# Prevents AI from calling both in the same response without waiting for user input.
+_CONTEXT_SELECT_MIN_DELAY: float = 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -728,6 +734,23 @@ def _require_context() -> list[TextContent] | str:
 def _handle_select_context(arguments: dict[str, Any]) -> list[TextContent]:
     global _selected_context
 
+    if _contexts_listed_at is None:
+        return _text(
+            "Error: You must call list_kube_contexts first and present the list "
+            "to the user before selecting a context.\n"
+            "This ensures the user explicitly chooses which cluster to target."
+        )
+
+    elapsed = time.monotonic() - _contexts_listed_at
+    if elapsed < _CONTEXT_SELECT_MIN_DELAY:
+        return _text(
+            "Error: You must wait for the user to choose a context.\n"
+            "list_kube_contexts was called less than 2 seconds ago — "
+            "this means you called both tools in the same response.\n\n"
+            "Present the context list to the user, STOP, and wait for "
+            "their selection before calling select_kube_context."
+        )
+
     ctx = arguments.get("context")
     if not ctx:
         return _text("Error: 'context' parameter is required")
@@ -750,6 +773,9 @@ def _handle_select_context(arguments: dict[str, Any]) -> list[TextContent]:
 
 
 def _handle_list_contexts(arguments: dict[str, Any]) -> list[TextContent]:
+    global _contexts_listed_at
+    _contexts_listed_at = time.monotonic()
+
     contexts, current = flux_lint.get_kubectl_contexts()
 
     if not contexts:

@@ -33,7 +33,33 @@ async def test_list_tools_returns_all_tools():
 
 
 @pytest.mark.asyncio
+async def test_select_context_requires_list_first():
+    result = await server.call_tool("select_kube_context", {"context": "my-ctx"})
+
+    assert "list_kube_contexts" in result[0].text
+    assert server._selected_context is None
+
+
+@pytest.mark.asyncio
+async def test_select_context_rejects_immediate_call_after_list():
+    """Calling select_kube_context too quickly after list_kube_contexts must fail.
+
+    This enforces that the AI presents the list and waits for user input
+    before selecting — not both in the same response.
+    """
+    import time
+
+    server._contexts_listed_at = time.monotonic()  # just listed — too soon
+
+    result = await server.call_tool("select_kube_context", {"context": "my-ctx"})
+
+    assert "wait for the user" in result[0].text
+    assert server._selected_context is None
+
+
+@pytest.mark.asyncio
 async def test_select_context_missing_param():
+    server._contexts_listed_at = 0.0
     result = await server.call_tool("select_kube_context", {})
 
     assert "required" in result[0].text.lower()
@@ -41,6 +67,7 @@ async def test_select_context_missing_param():
 
 @pytest.mark.asyncio
 async def test_select_context_empty_param():
+    server._contexts_listed_at = 0.0
     result = await server.call_tool("select_kube_context", {"context": ""})
 
     assert "required" in result[0].text.lower()
@@ -48,6 +75,7 @@ async def test_select_context_empty_param():
 
 @pytest.mark.asyncio
 async def test_select_context_not_found(mocker):
+    server._contexts_listed_at = 0.0
     mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         # get_kubectl_contexts (contexts list)
@@ -66,6 +94,7 @@ async def test_select_context_not_found(mocker):
 
 @pytest.mark.asyncio
 async def test_select_context_success(mocker):
+    server._contexts_listed_at = 0.0
     mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = [
         subprocess.CompletedProcess(
@@ -125,7 +154,8 @@ async def test_helm_dryrun_requires_context():
 
 @pytest.mark.asyncio
 async def test_flux_dryrun_missing_path():
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     result = await server.call_tool("flux_dryrun", {})
 
@@ -135,7 +165,8 @@ async def test_flux_dryrun_missing_path():
 
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_missing_path():
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     result = await server.call_tool("kustomize_dryrun", {})
 
@@ -145,7 +176,8 @@ async def test_kustomize_dryrun_missing_path():
 
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_not_a_kustomization(tmp_path):
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     result = await server.call_tool("kustomize_dryrun", {"path": str(tmp_path)})
 
@@ -154,7 +186,8 @@ async def test_kustomize_dryrun_not_a_kustomization(tmp_path):
 
 @pytest.mark.asyncio
 async def test_helm_dryrun_missing_chart_path():
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     result = await server.call_tool("helm_dryrun", {})
 
@@ -164,7 +197,8 @@ async def test_helm_dryrun_missing_chart_path():
 
 @pytest.mark.asyncio
 async def test_helm_dryrun_not_a_chart(tmp_path):
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     result = await server.call_tool("helm_dryrun", {"chart_path": str(tmp_path)})
 
@@ -180,6 +214,7 @@ async def test_unknown_tool():
 
 @pytest.mark.asyncio
 async def test_none_arguments():
+    server._contexts_listed_at = 0.0
     result = await server.call_tool("select_kube_context", None)
 
     assert "required" in result[0].text.lower()
@@ -210,7 +245,8 @@ async def test_list_contexts_shows_selected(mocker):
         ),
         subprocess.CompletedProcess(args=[], returncode=0, stdout="ctx-a\n", stderr=""),
     ]
-    server._selected_context = "ctx-b"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="ctx-b"
 
     result = await server.call_tool("list_kube_contexts", {})
 
@@ -223,7 +259,8 @@ async def test_list_contexts_shows_selected(mocker):
 
 @pytest.mark.asyncio
 async def test_flux_dryrun_no_yaml_files(tmp_path):
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "readme.md").write_text("hello")
 
     result = await server.call_tool("flux_dryrun", {"path": str(tmp_path)})
@@ -275,7 +312,8 @@ async def test_list_contexts_shows_global_current_marker(mocker):
 @pytest.mark.asyncio
 async def test_flux_dryrun_all_pass(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "deploy.yaml").write_text("apiVersion: v1\nkind: ConfigMap\n")
 
     mock_run.side_effect = [
@@ -299,7 +337,8 @@ async def test_flux_dryrun_all_pass(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_flux_dryrun_client_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "bad.yaml").write_text("apiVersion: v1\nkind: Bad\n")
 
     mock_run.side_effect = [
@@ -320,7 +359,8 @@ async def test_flux_dryrun_client_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_flux_dryrun_server_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "deploy.yaml").write_text("apiVersion: v1\nkind: ConfigMap\n")
 
     mock_run.side_effect = [
@@ -345,7 +385,8 @@ async def test_flux_dryrun_server_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_flux_dryrun_server_pass_with_warnings(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "deploy.yaml").write_text("apiVersion: v1\nkind: ConfigMap\n")
 
     mock_run.side_effect = [
@@ -373,7 +414,8 @@ async def test_flux_dryrun_server_pass_with_warnings(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_flux_dryrun_mixed_results(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "a.yaml").write_text("apiVersion: v1\nkind: ConfigMap\n")
     (tmp_path / "b.yaml").write_text("apiVersion: v1\nkind: Bad\n")
 
@@ -402,7 +444,8 @@ async def test_flux_dryrun_mixed_results(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_flux_dryrun_shows_context_and_path(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "prod-cluster"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="prod-cluster"
     (tmp_path / "deploy.yaml").write_text("apiVersion: v1\nkind: ConfigMap\n")
 
     mock_run.side_effect = [
@@ -427,7 +470,8 @@ async def test_flux_dryrun_shows_context_and_path(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_flux_check_healthy(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="all checks passed\n", stderr=""
@@ -444,7 +488,8 @@ async def test_flux_check_healthy(mocker):
 @pytest.mark.asyncio
 async def test_flux_check_unhealthy(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=1, stdout="", stderr="flux-system check failed\n"
@@ -463,7 +508,8 @@ async def test_flux_check_unhealthy(mocker):
 @pytest.mark.asyncio
 async def test_flux_status_success(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.return_value = subprocess.CompletedProcess(
         args=[],
@@ -483,7 +529,8 @@ async def test_flux_status_success(mocker):
 @pytest.mark.asyncio
 async def test_flux_status_failure(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=1, stdout="", stderr="error: flux not ready\n"
@@ -518,7 +565,8 @@ data:
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_all_pass(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "kustomization.yaml").write_text("apiVersion: kustomize.config.k8s.io/v1beta1")
 
     mock_run.side_effect = [
@@ -548,7 +596,8 @@ async def test_kustomize_dryrun_all_pass(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_build_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "kustomization.yaml").write_text("resources: [missing.yaml]")
 
     mock_run.side_effect = [
@@ -568,7 +617,8 @@ async def test_kustomize_dryrun_build_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_client_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     mock_run.side_effect = [
@@ -592,7 +642,8 @@ async def test_kustomize_dryrun_client_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_server_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     mock_run.side_effect = [
@@ -618,7 +669,8 @@ async def test_kustomize_dryrun_server_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_server_pass_with_warnings(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     mock_run.side_effect = [
@@ -648,7 +700,8 @@ async def test_kustomize_dryrun_server_pass_with_warnings(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_kustomize_dryrun_shows_context_and_path(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "prod-cluster"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="prod-cluster"
     (tmp_path / "kustomization.yaml").write_text("resources: []")
 
     mock_run.side_effect = [
@@ -694,7 +747,8 @@ spec:
 @pytest.mark.asyncio
 async def test_helm_dryrun_all_pass(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "Chart.yaml").write_text("name: test-chart\nversion: 0.1.0\n")
 
     mock_run.side_effect = [
@@ -729,7 +783,8 @@ async def test_helm_dryrun_all_pass(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_helm_dryrun_lint_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "Chart.yaml").write_text("name: test-chart\nversion: 0.1.0\n")
 
     mock_run.side_effect = [
@@ -762,7 +817,8 @@ async def test_helm_dryrun_lint_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_helm_dryrun_render_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "Chart.yaml").write_text("name: test-chart\nversion: 0.1.0\n")
 
     mock_run.side_effect = [
@@ -788,7 +844,8 @@ async def test_helm_dryrun_render_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_helm_dryrun_client_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "Chart.yaml").write_text("name: test-chart\nversion: 0.1.0\n")
 
     mock_run.side_effect = [
@@ -817,7 +874,8 @@ async def test_helm_dryrun_client_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_helm_dryrun_server_fail(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "Chart.yaml").write_text("name: test-chart\nversion: 0.1.0\n")
 
     mock_run.side_effect = [
@@ -850,7 +908,8 @@ async def test_helm_dryrun_server_fail(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_helm_dryrun_server_pass_with_warnings(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "Chart.yaml").write_text("name: test-chart\nversion: 0.1.0\n")
 
     mock_run.side_effect = [
@@ -887,7 +946,8 @@ async def test_helm_dryrun_server_pass_with_warnings(mocker, tmp_path):
 @pytest.mark.asyncio
 async def test_helm_dryrun_shows_values_and_namespace(mocker, tmp_path):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
     (tmp_path / "Chart.yaml").write_text("name: test-chart\nversion: 0.1.0\n")
     values_file = str(tmp_path / "values-prod.yaml")
 
@@ -960,7 +1020,8 @@ async def test_kubeconform_missing_path():
 async def test_kubeconform_works_without_context(mocker):
     mock_run = mocker.patch("subprocess.run")
     """Key differentiator: kubeconform does NOT require select_kube_context."""
-    server._selected_context = None
+    server._contexts_listed_at = 0.0
+    server._selected_context =None
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="", stderr="",
     )
@@ -1140,7 +1201,8 @@ async def test_yaml_validate_missing_path():
 @pytest.mark.asyncio
 async def test_yaml_validate_works_without_context():
     """yaml_validate does NOT require select_kube_context."""
-    server._selected_context = None
+    server._contexts_listed_at = 0.0
+    server._selected_context =None
 
     result = await server.call_tool("yaml_validate", {"path": "/tmp/nonexistent"})
 
@@ -1353,7 +1415,8 @@ async def test_argocd_app_list_requires_context():
 @pytest.mark.asyncio
 async def test_argocd_app_list_success(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1374,7 +1437,8 @@ async def test_argocd_app_list_success(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_list_empty(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1391,7 +1455,8 @@ async def test_argocd_app_list_empty(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_list_with_namespace(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout=ARGOCD_LIST_JSON, stderr=""
@@ -1406,7 +1471,8 @@ async def test_argocd_app_list_with_namespace(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_list_error(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1423,7 +1489,8 @@ async def test_argocd_app_list_error(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_list_shows_context(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "prod-cluster"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="prod-cluster"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1448,7 +1515,8 @@ async def test_argocd_app_get_requires_context():
 
 @pytest.mark.asyncio
 async def test_argocd_app_get_missing_app_name():
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     result = await server.call_tool("argocd_app_get", {})
     text = result[0].text
@@ -1460,7 +1528,8 @@ async def test_argocd_app_get_missing_app_name():
 @pytest.mark.asyncio
 async def test_argocd_app_get_success(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1481,7 +1550,8 @@ async def test_argocd_app_get_success(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_get_with_resources_and_conditions(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1500,7 +1570,8 @@ async def test_argocd_app_get_with_resources_and_conditions(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_get_with_health_message(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1517,7 +1588,8 @@ async def test_argocd_app_get_with_health_message(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_get_error(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1534,7 +1606,8 @@ async def test_argocd_app_get_error(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_get_shows_context_and_app(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "prod-cluster"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="prod-cluster"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1562,7 +1635,8 @@ async def test_argocd_app_diff_requires_context():
 
 @pytest.mark.asyncio
 async def test_argocd_app_diff_missing_app_name():
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     result = await server.call_tool("argocd_app_diff", {})
     text = result[0].text
@@ -1574,7 +1648,8 @@ async def test_argocd_app_diff_missing_app_name():
 @pytest.mark.asyncio
 async def test_argocd_app_diff_in_sync(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1591,7 +1666,8 @@ async def test_argocd_app_diff_in_sync(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_diff_has_diff(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     diff_output = "===== apps/Deployment default/my-app ======\n  replicas: 2 -> 3"
     mock_run.side_effect = [
@@ -1609,7 +1685,8 @@ async def test_argocd_app_diff_has_diff(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_diff_error(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "test-ctx"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
@@ -1626,7 +1703,8 @@ async def test_argocd_app_diff_error(mocker):
 @pytest.mark.asyncio
 async def test_argocd_app_diff_shows_context_and_app(mocker):
     mock_run = mocker.patch("subprocess.run")
-    server._selected_context = "prod-cluster"
+    server._contexts_listed_at = 0.0
+    server._selected_context ="prod-cluster"
 
     mock_run.side_effect = [
         _DETECT_OK,

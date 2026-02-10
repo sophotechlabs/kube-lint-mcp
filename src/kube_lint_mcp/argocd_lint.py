@@ -104,11 +104,11 @@ def _build_argocd_args(context: str, namespace: str | None = None) -> list[str]:
         namespace: Optional namespace filter
 
     Returns:
-        List of CLI arguments: --core --kube-context CTX [-n NS]
+        List of CLI arguments: --core --kube-context CTX [--namespace NS]
     """
     args = ["--core", "--kube-context", context]
     if namespace:
-        args.extend(["-n", namespace])
+        args.extend(["--namespace", namespace])
     return args
 
 

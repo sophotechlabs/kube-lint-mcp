@@ -170,9 +170,9 @@ def test_list_apps_auto_detects_namespace(mocker):
 
     argocd_lint.list_argocd_apps(context="my-ctx")
 
-    # Second call should have -n argo-cd
+    # Second call should have --namespace argo-cd
     argocd_cmd = mock_run.call_args_list[1][0][0]
-    assert "-n" in argocd_cmd
+    assert "--namespace" in argocd_cmd
     assert "argo-cd" in argocd_cmd
 
 
@@ -187,7 +187,7 @@ def test_list_apps_skips_detect_when_namespace_provided(mocker):
     # Only one call (no detection)
     assert mock_run.call_count == 1
     cmd = mock_run.call_args[0][0]
-    assert "-n" in cmd
+    assert "--namespace" in cmd
     assert "custom-ns" in cmd
 
 
@@ -233,7 +233,7 @@ def test_build_args_with_context_only():
 def test_build_args_with_context_and_namespace():
     args = argocd_lint._build_argocd_args("my-ctx", namespace="argocd")
 
-    assert args == ["--core", "--kube-context", "my-ctx", "-n", "argocd"]
+    assert args == ["--core", "--kube-context", "my-ctx", "--namespace", "argocd"]
 
 
 def test_build_args_with_none_namespace():
@@ -308,7 +308,7 @@ def test_list_apps_passes_namespace_flag(mocker):
     argocd_lint.list_argocd_apps(context="my-ctx", namespace="argo-cd")
 
     cmd = mock_run.call_args[0][0]
-    assert "-n" in cmd
+    assert "--namespace" in cmd
     assert "argo-cd" in cmd
 
 
@@ -442,7 +442,7 @@ def test_get_app_passes_namespace_flag(mocker):
     argocd_lint.get_argocd_app("my-app", context="my-ctx", namespace="argo-cd")
 
     cmd = mock_run.call_args[0][0]
-    assert "-n" in cmd
+    assert "--namespace" in cmd
     assert "argo-cd" in cmd
 
 
@@ -580,7 +580,7 @@ def test_diff_app_passes_namespace_flag(mocker):
     argocd_lint.diff_argocd_app("my-app", context="my-ctx", namespace="argo-cd")
 
     cmd = mock_run.call_args[0][0]
-    assert "-n" in cmd
+    assert "--namespace" in cmd
     assert "argo-cd" in cmd
 
 
