@@ -1,16 +1,28 @@
-.PHONY: test lint typecheck install ci
+VENV := .venv
+PYTHON := $(VENV)/bin/python
+PIP := $(VENV)/bin/pip
 
-install:
-	pip install -e ".[dev]"
+.PHONY: all test lint typecheck install ci clean
 
-test:
-	python -m pytest tests/ -v
+all: lint typecheck test
 
-lint:
-	ruff check src/ tests/
+$(VENV):
+	python3 -m venv $(VENV)
+	$(PIP) install -e ".[dev]"
 
-typecheck:
-	mypy src/
+install: $(VENV)
 
-ci:
-	python -m pytest tests/ --cov --cov-report=xml
+test: $(VENV)
+	$(PYTHON) -m pytest tests/ -v
+
+lint: $(VENV)
+	$(VENV)/bin/ruff check src/ tests/
+
+typecheck: $(VENV)
+	$(VENV)/bin/mypy src/
+
+ci: $(VENV)
+	$(PYTHON) -m pytest tests/ --cov --cov-report=xml
+
+clean:
+	rm -rf $(VENV)
