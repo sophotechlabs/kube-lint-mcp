@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor == 'archy-rock3t-cloud' || github.actor == 'dependabot[bot]'
     steps:
-      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         id: app-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.head_ref, 'release/')
     steps:
-      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         id: approver-token
         with:
           app-id: ${{ vars.APPROVER_APP_ID }}
