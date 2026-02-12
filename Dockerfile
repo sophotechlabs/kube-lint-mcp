@@ -1,5 +1,5 @@
 # ---- Stage 1: Build + install ----
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -41,7 +41,7 @@ COPY . /src
 RUN pip install --no-cache-dir --prefix=/install /src
 
 # ---- Stage 2: Runtime ----
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 RUN groupadd -r nonroot && useradd -r -g nonroot -d /home/nonroot -m nonroot
 
