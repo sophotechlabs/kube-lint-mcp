@@ -7,12 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-02-24
+
+### Changed
+
+- Bumped google/osv-scanner-action from 2.3.2 to 2.3.3
+- Bumped bridgecrewio/checkov-action from 12.3080.0 to 12.3081.0
+- Bumped actions/labeler from 5.0.0 to 6.0.1
+
+## [0.5.9] - 2026-02-24
+
+### Changed
+
+- Extracted formatting logic from `server.py` into dedicated `formatters.py` module (server.py -39% LOC)
+- Added 41 unit tests for formatters (305 total tests, 100% coverage)
+
+## [0.5.8] - 2026-02-10
+
+### Changed
+
+- Enforce manual context selection — `select_kube_context` must be called before any validation tool (no implicit default context)
+- Refactored Makefile to create and use local `.venv`
+
+## [0.5.6] - 2026-02-07
+
 ### Added
 
 - ArgoCD application management tools: `argocd_app_list`, `argocd_app_get`, `argocd_app_diff`
 - ArgoCD uses `--core` mode (kubeconfig only, no ArgoCD server auth needed)
 - ArgoCD CLI bundled in Docker image (v2.13.3)
 - `KUBE_LINT_ARGOCD_TIMEOUT` environment variable for ArgoCD CLI timeout
+
+### Changed
+
+- Refactored all tests to use `pytest-mock` (`mocker` fixture) instead of `unittest.mock`
+- Refactored release workflow
+
+## [0.4.4] - 2026-02-07
+
+### Added
+
+- YAML syntax validation tool (`yaml_validate`) — catches syntax errors, duplicate keys, tab indentation without a cluster
 - `py.typed` marker for PEP 561 inline type support
 - mypy strict type checking with CI integration
 - CHANGELOG.md
@@ -20,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Replaced flake8 with ruff for linting (adds isort, pyupgrade, bugbear, simplify rules)
+- Updated README with ArgoCD docs, Docker config, troubleshooting, and environment variables
 
 ### Removed
 
@@ -146,7 +182,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI pipeline with tests and coverage
 - Release workflow with PyPI OIDC publishing
 
-[Unreleased]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.5.9...v0.6.0
+[0.5.9]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.5.8...v0.5.9
+[0.5.8]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.5.6...v0.5.8
+[0.5.6]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.4.4...v0.5.6
+[0.4.4]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.4.0...v0.4.1
