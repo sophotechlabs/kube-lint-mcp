@@ -84,7 +84,7 @@ jobs:
           output-file: sbom-python.spdx.json
 
       - name: Attest build provenance (Python package)
-        uses: actions/attest-build-provenance@c44148e5bf178192efd8947e07a0d439a356c60b # v2
+        uses: actions/attest-build-provenance@02a49bdc410a809733602220c6f6275925d6b578 # v2
         with:
           subject-path: dist/*
 
@@ -164,7 +164,7 @@ jobs:
           output-file: sbom.spdx.json
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@c44148e5bf178192efd8947e07a0d439a356c60b # v2
+        uses: actions/attest-build-provenance@02a49bdc410a809733602220c6f6275925d6b578 # v2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build.outputs.digest }}
