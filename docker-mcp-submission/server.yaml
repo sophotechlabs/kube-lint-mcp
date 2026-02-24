@@ -9,21 +9,23 @@ meta:
     - kubernetes
     - helm
     - fluxcd
+    - argocd
     - gitops
     - validation
 
 about:
   title: Kube Lint MCP
   description: >-
-    Validate Kubernetes manifests, Helm charts, Kustomize overlays, and FluxCD
-    resources with dry-run checks against a live cluster. Includes offline
-    schema validation via kubeconform. Ships with kubectl, helm, flux, and
+    Validate Kubernetes manifests, Helm charts, Kustomize overlays, FluxCD
+    resources, and ArgoCD applications with dry-run checks against a live
+    cluster. Includes offline schema validation via kubeconform and YAML
+    syntax checking. Ships with kubectl, helm, flux, argocd, and
     kubeconform — batteries included.
   icon: https://raw.githubusercontent.com/sophotechlabs/kube-lint-mcp/main/icon.svg
 
 source:
   project: https://github.com/sophotechlabs/kube-lint-mcp
-  commit: 8caf93c9ae63e18fff9bcf2a573683f6b634359c
+  commit: ace4ee6de5566772b505870151384abe1f10cd9b
 
 run:
   command:

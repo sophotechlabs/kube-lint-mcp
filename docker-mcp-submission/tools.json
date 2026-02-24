@@ -124,5 +124,75 @@
         "description": "Reject additional properties not in the schema (default: false)"
       }
     ]
+  },
+  {
+    "name": "yaml_validate",
+    "description": "Validate YAML syntax of Kubernetes manifest files. Catches syntax errors, duplicate keys, and tab indentation. Use as a first-pass check before kubeconform or dry-run. No cluster connection needed.",
+    "annotations": {
+      "title": "YAML Validate",
+      "readOnlyHint": true
+    },
+    "arguments": [
+      {
+        "name": "path",
+        "type": "string",
+        "description": "Path to YAML file or directory containing YAML files"
+      }
+    ]
+  },
+  {
+    "name": "argocd_app_list",
+    "description": "List all ArgoCD applications with sync and health status. Uses --core mode (kubeconfig only, no ArgoCD server auth needed).",
+    "annotations": {
+      "title": "ArgoCD App List",
+      "readOnlyHint": true
+    },
+    "arguments": [
+      {
+        "name": "namespace",
+        "type": "string",
+        "description": "Namespace where ArgoCD Application CRs live (optional). Common values: 'argocd', 'argo-cd'"
+      }
+    ]
+  },
+  {
+    "name": "argocd_app_get",
+    "description": "Get detailed status of a single ArgoCD application including sync/health status, conditions, and resource statuses. Uses --core mode (kubeconfig only, no ArgoCD server auth needed).",
+    "annotations": {
+      "title": "ArgoCD App Get",
+      "readOnlyHint": true
+    },
+    "arguments": [
+      {
+        "name": "app_name",
+        "type": "string",
+        "description": "Name of the ArgoCD Application"
+      },
+      {
+        "name": "namespace",
+        "type": "string",
+        "description": "Namespace where the Application CR lives (optional). Common values: 'argocd', 'argo-cd'"
+      }
+    ]
+  },
+  {
+    "name": "argocd_app_diff",
+    "description": "Show diff between live and desired state of an ArgoCD application. Returns unified diff output showing what would change on sync. Uses --core mode (kubeconfig only, no ArgoCD server auth needed).",
+    "annotations": {
+      "title": "ArgoCD App Diff",
+      "readOnlyHint": true
+    },
+    "arguments": [
+      {
+        "name": "app_name",
+        "type": "string",
+        "description": "Name of the ArgoCD Application"
+      },
+      {
+        "name": "namespace",
+        "type": "string",
+        "description": "Namespace where the Application CR lives (optional). Common values: 'argocd', 'argo-cd'"
+      }
+    ]
   }
 ]
