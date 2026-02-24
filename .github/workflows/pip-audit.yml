@@ -5,18 +5,25 @@ on:
     branches: [main]
     paths:
       - pyproject.toml
+      - .github/workflows/pip-audit.yml
   pull_request:
     branches: [main]
     paths:
       - pyproject.toml
+      - .github/workflows/pip-audit.yml
   schedule:
     - cron: "0 6 * * 3"
 
 permissions: read-all
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 

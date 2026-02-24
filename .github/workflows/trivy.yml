@@ -6,6 +6,7 @@ on:
     paths:
       - Dockerfile
       - pyproject.toml
+      - .github/workflows/trivy.yml
   schedule:
     - cron: "0 6 * * 3"
 
@@ -13,9 +14,14 @@ permissions:
   security-events: write
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 

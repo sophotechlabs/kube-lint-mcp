@@ -9,6 +9,7 @@ permissions: read-all
 jobs:
   auto-approve:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: github.actor == 'archy-rock3t-cloud' || github.actor == 'dependabot[bot]'
     steps:
       - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
@@ -23,6 +24,7 @@ jobs:
 
   auto-approve-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: startsWith(github.head_ref, 'release/')
     steps:
       - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2

@@ -5,18 +5,25 @@ on:
     branches: [main]
     paths:
       - src/**
+      - .github/workflows/bandit.yml
   pull_request:
     branches: [main]
     paths:
       - src/**
+      - .github/workflows/bandit.yml
 
 permissions:
   security-events: write
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   bandit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -25,7 +32,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install Bandit
-        run: pip install bandit[sarif]
+        run: pip install "bandit[sarif]==1.9.3"
 
       - name: Run Bandit
         run: bandit -r src/ -f sarif -o bandit-results.sarif || true
