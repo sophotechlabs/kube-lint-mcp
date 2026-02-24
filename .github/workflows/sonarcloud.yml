@@ -24,7 +24,7 @@ jobs:
         run: make install
 
       - name: Run tests with coverage
-        run: python -m pytest tests/ --cov=src/kube_lint_mcp --cov-report=xml:coverage.xml
+        run: .venv/bin/python -m pytest tests/ --cov=src/kube_lint_mcp --cov-report=xml:coverage.xml
 
       - name: SonarCloud Scan
         uses: sonarsource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8 # v5
