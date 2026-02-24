@@ -51,6 +51,14 @@ jobs:
         run: |
           sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
 
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@e16f179f0be49ecdfe63753837f20b9531642772 # v4.7.0
+        with:
+          config: cliff.toml
+          args: --unreleased --tag "v${{ inputs.version }}" --prepend CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create release PR
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -60,7 +68,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git checkout -b "$BRANCH"
-          git add pyproject.toml server.json
+          git add pyproject.toml server.json CHANGELOG.md
           git commit -m "release: v${{ inputs.version }}"
           git push -u origin "$BRANCH"
           gh pr create \
