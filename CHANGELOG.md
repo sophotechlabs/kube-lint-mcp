@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI workflow hardening: added `timeout-minutes` to all 23 workflows, `concurrency` groups to 17 workflows
+- CI: pinned unpinned actions in release pipeline (`anchore/sbom-action`, `actions/attest-build-provenance`) to SHA hashes
+- CI: pinned tool versions (`bandit==1.9.3`, `build==1.4.0`) in CI/release workflows
+- CI: added self-trigger paths to 6 workflows (bandit, hadolint, dockle, trivy, pip-audit, snyk)
+- Added `make release` command for automated version bumping
+
+## [0.6.1] - 2026-02-24
+
+### Changed
+
+- Added SonarCloud analysis workflow
+- Bumped sigstore/cosign-installer from 3.9.1 to 4.0.0
+- Bumped python Docker base from 3.13-slim to 3.14-slim
+- Bumped actions/create-github-app-token from 2.0.6 to 2.2.1
+
 ## [0.6.0] - 2026-02-24
 
 ### Changed
@@ -182,7 +199,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI pipeline with tests and coverage
 - Release workflow with PyPI OIDC publishing
 
-[Unreleased]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.5.9...v0.6.0
 [0.5.9]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.5.8...v0.5.9
 [0.5.8]: https://github.com/sophotechlabs/kube-lint-mcp/compare/v0.5.6...v0.5.8
