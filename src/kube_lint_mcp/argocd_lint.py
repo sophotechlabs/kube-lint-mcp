@@ -3,7 +3,9 @@
 import json
 import logging
 import os
+import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -96,20 +98,47 @@ def _detect_argocd_namespace(context: str) -> str | None:
     return None
 
 
-def _build_argocd_args(context: str, namespace: str | None = None) -> list[str]:
-    """Build common ArgoCD CLI args.
+def _build_argocd_args(context: str) -> list[str]:
+    """Build common ArgoCD CLI args for diff command.
 
     Args:
         context: kubectl context to use (passed via --kube-context flag)
-        namespace: Optional namespace filter
 
     Returns:
-        List of CLI arguments: --core --kube-context CTX [--namespace NS]
+        List of CLI arguments: --core --kube-context CTX
     """
-    args = ["--core", "--kube-context", context]
-    if namespace:
-        args.extend(["--namespace", namespace])
-    return args
+    return ["--core", "--kube-context", context]
+
+
+def _build_temp_kubeconfig(context: str, namespace: str) -> str:
+    """Create a temporary kubeconfig with the context's default namespace set.
+
+    ArgoCD CLI v3 removed --namespace. In --core mode it reads the namespace
+    from the kubeconfig context. This creates a temp copy with the namespace
+    set so argocd diff can find its resources.
+
+    Args:
+        context: kubectl context name
+        namespace: namespace to set on the context
+
+    Returns:
+        Path to the temporary kubeconfig file (caller must clean up)
+    """
+    kubeconfig_path = os.environ.get("KUBECONFIG", os.path.expanduser("~/.kube/config"))
+    fd, temp_path = tempfile.mkstemp(suffix=".kubeconfig")
+    os.close(fd)
+    shutil.copy2(kubeconfig_path, temp_path)
+    subprocess.run(
+        [
+            "kubectl", "config", "set-context", context,
+            "--namespace", namespace,
+            "--kubeconfig", temp_path,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    return temp_path
 
 
 def _extract_source(spec: dict[str, object]) -> tuple[str, str, str]:
@@ -133,8 +162,11 @@ def list_argocd_apps(
 ) -> ArgoAppListResult:
     """List all ArgoCD applications with sync/health status.
 
+    Uses kubectl to query Application CRs directly, avoiding argocd CLI
+    version incompatibilities.
+
     Args:
-        context: kubectl context to use (passed via --kube-context flag)
+        context: kubectl context to use
         namespace: Optional namespace where Application CRs live
 
     Returns:
@@ -148,8 +180,12 @@ def list_argocd_apps(
                 error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
                 "Specify the namespace parameter explicitly.",
             )
-    base_args = _build_argocd_args(context, namespace)
-    cmd = ["argocd", "app", "list", *base_args, "-o", "json"]
+    cmd = [
+        "kubectl", "get", "applications.argoproj.io",
+        "-n", namespace,
+        "--context", context,
+        "-o", "json",
+    ]
 
     logger.debug("Running: %s", " ".join(cmd))
     try:
@@ -160,26 +196,27 @@ def list_argocd_apps(
             timeout=ARGOCD_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
-        logger.error("argocd app list timed out after %ds", ARGOCD_TIMEOUT)
-        return ArgoAppListResult(success=False, error="Timeout running argocd app list")
+        logger.error("kubectl get applications timed out after %ds", ARGOCD_TIMEOUT)
+        return ArgoAppListResult(success=False, error="Timeout listing ArgoCD applications")
     except FileNotFoundError:
-        logger.error("argocd CLI not found on PATH")
-        return ArgoAppListResult(success=False, error="argocd CLI not found")
+        logger.error("kubectl not found on PATH")
+        return ArgoAppListResult(success=False, error="kubectl not found")
 
     if result.returncode != 0:
         error = result.stderr.strip() or result.stdout.strip()
-        logger.warning("argocd app list failed: %s", error)
+        logger.warning("kubectl get applications failed: %s", error)
         return ArgoAppListResult(success=False, error=error)
 
     try:
-        items = json.loads(result.stdout)
+        data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        logger.error("Failed to parse argocd output: %s", exc)
+        logger.error("Failed to parse kubectl output: %s", exc)
         return ArgoAppListResult(
             success=False,
-            error=f"Failed to parse argocd output: {exc}",
+            error=f"Failed to parse kubectl output: {exc}",
         )
 
+    items = data.get("items", []) if isinstance(data, dict) else []
     if not isinstance(items, list):
         items = []
 
@@ -217,9 +254,12 @@ def get_argocd_app(
 ) -> ArgoAppGetResult:
     """Get detailed status of a single ArgoCD application.
 
+    Uses kubectl to query the Application CR directly, avoiding argocd CLI
+    version incompatibilities.
+
     Args:
         app_name: Name of the ArgoCD Application
-        context: kubectl context to use (passed via --kube-context flag)
+        context: kubectl context to use
         namespace: Optional namespace where the Application CR lives
 
     Returns:
@@ -233,8 +273,12 @@ def get_argocd_app(
                 error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
                 "Specify the namespace parameter explicitly.",
             )
-    base_args = _build_argocd_args(context, namespace)
-    cmd = ["argocd", "app", "get", app_name, *base_args, "-o", "json"]
+    cmd = [
+        "kubectl", "get", f"applications.argoproj.io/{app_name}",
+        "-n", namespace,
+        "--context", context,
+        "-o", "json",
+    ]
 
     logger.debug("Running: %s", " ".join(cmd))
     try:
@@ -245,28 +289,28 @@ def get_argocd_app(
             timeout=ARGOCD_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
-        logger.error("argocd app get timed out after %ds", ARGOCD_TIMEOUT)
-        return ArgoAppGetResult(success=False, error="Timeout running argocd app get")
+        logger.error("kubectl get application timed out after %ds", ARGOCD_TIMEOUT)
+        return ArgoAppGetResult(success=False, error="Timeout getting ArgoCD application")
     except FileNotFoundError:
-        logger.error("argocd CLI not found on PATH")
-        return ArgoAppGetResult(success=False, error="argocd CLI not found")
+        logger.error("kubectl not found on PATH")
+        return ArgoAppGetResult(success=False, error="kubectl not found")
 
     if result.returncode != 0:
         error = result.stderr.strip() or result.stdout.strip()
-        logger.warning("argocd app get failed: %s", error)
+        logger.warning("kubectl get application failed: %s", error)
         return ArgoAppGetResult(success=False, error=error)
 
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        logger.error("Failed to parse argocd output: %s", exc)
+        logger.error("Failed to parse kubectl output: %s", exc)
         return ArgoAppGetResult(
             success=False,
-            error=f"Failed to parse argocd output: {exc}",
+            error=f"Failed to parse kubectl output: {exc}",
         )
 
     if not isinstance(data, dict):
-        return ArgoAppGetResult(success=False, error="Unexpected argocd output format")
+        return ArgoAppGetResult(success=False, error="Unexpected kubectl output format")
 
     metadata = data.get("metadata", {})
     spec = data.get("spec", {})
@@ -329,6 +373,10 @@ def diff_argocd_app(
 ) -> ArgoAppDiffResult:
     """Show diff between live and desired state of an ArgoCD application.
 
+    Uses argocd CLI with a temporary kubeconfig that has the namespace set
+    on the context. ArgoCD CLI v3 removed --namespace; in --core mode it
+    reads the namespace from the kubeconfig context instead.
+
     Exit codes:
         0 = in sync (no diff)
         1 = has diff (diff output on stdout)
@@ -336,7 +384,7 @@ def diff_argocd_app(
 
     Args:
         app_name: Name of the ArgoCD Application
-        context: kubectl context to use (passed via --kube-context flag)
+        context: kubectl context to use
         namespace: Optional namespace where the Application CR lives
 
     Returns:
@@ -350,34 +398,43 @@ def diff_argocd_app(
                 error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
                 "Specify the namespace parameter explicitly.",
             )
-    base_args = _build_argocd_args(context, namespace)
-    cmd = ["argocd", "app", "diff", app_name, *base_args]
 
-    logger.debug("Running: %s", " ".join(cmd))
+    temp_kubeconfig = None
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=ARGOCD_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        logger.error("argocd app diff timed out after %ds", ARGOCD_TIMEOUT)
-        return ArgoAppDiffResult(success=False, error="Timeout running argocd app diff")
-    except FileNotFoundError:
-        logger.error("argocd CLI not found on PATH")
-        return ArgoAppDiffResult(success=False, error="argocd CLI not found")
+        temp_kubeconfig = _build_temp_kubeconfig(context, namespace)
+        base_args = _build_argocd_args(context)
+        cmd = ["argocd", "app", "diff", app_name, *base_args]
+        env = {**os.environ, "KUBECONFIG": temp_kubeconfig}
 
-    if result.returncode == 0:
-        return ArgoAppDiffResult(success=True, in_sync=True)
-    elif result.returncode == 1:
-        diff_output = result.stdout.strip() or result.stderr.strip()
-        return ArgoAppDiffResult(
-            success=True,
-            in_sync=False,
-            diff_output=diff_output,
-        )
-    else:
-        error = result.stderr.strip() or result.stdout.strip()
-        logger.warning("argocd app diff error: %s", error)
-        return ArgoAppDiffResult(success=False, error=error)
+        logger.debug("Running: %s (KUBECONFIG=%s)", " ".join(cmd), temp_kubeconfig)
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=ARGOCD_TIMEOUT,
+                env=env,
+            )
+        except subprocess.TimeoutExpired:
+            logger.error("argocd app diff timed out after %ds", ARGOCD_TIMEOUT)
+            return ArgoAppDiffResult(success=False, error="Timeout running argocd app diff")
+        except FileNotFoundError:
+            logger.error("argocd CLI not found on PATH")
+            return ArgoAppDiffResult(success=False, error="argocd CLI not found")
+
+        if result.returncode == 0:
+            return ArgoAppDiffResult(success=True, in_sync=True)
+        elif result.returncode == 1:
+            diff_output = result.stdout.strip() or result.stderr.strip()
+            return ArgoAppDiffResult(
+                success=True,
+                in_sync=False,
+                diff_output=diff_output,
+            )
+        else:
+            error = result.stderr.strip() or result.stdout.strip()
+            logger.warning("argocd app diff error: %s", error)
+            return ArgoAppDiffResult(success=False, error=error)
+    finally:
+        if temp_kubeconfig and os.path.exists(temp_kubeconfig):
+            os.unlink(temp_kubeconfig)

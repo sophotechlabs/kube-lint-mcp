@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 
 import pytest
@@ -1341,24 +1342,36 @@ async def test_yaml_validate_single_file(tmp_path):
 
 # Simulates successful namespace auto-detection (kubectl get configmap argocd-cm)
 _DETECT_OK = subprocess.CompletedProcess(args=[], returncode=0, stdout="argocd", stderr="")
+# Simulates successful kubectl config set-context (used by _build_temp_kubeconfig)
+_SET_CTX_OK = subprocess.CompletedProcess(args=[], returncode=0, stdout="Context modified.", stderr="")
 
-ARGOCD_LIST_JSON = json.dumps([
-    {
-        "metadata": {"name": "my-app", "namespace": "argocd"},
-        "spec": {
-            "project": "default",
-            "source": {
-                "repoURL": "https://github.com/org/repo.git",
-                "path": "k8s/app",
-                "targetRevision": "HEAD",
+ARGOCD_LIST_JSON = json.dumps({
+    "apiVersion": "argoproj.io/v1alpha1",
+    "kind": "ApplicationList",
+    "items": [
+        {
+            "metadata": {"name": "my-app", "namespace": "argocd"},
+            "spec": {
+                "project": "default",
+                "source": {
+                    "repoURL": "https://github.com/org/repo.git",
+                    "path": "k8s/app",
+                    "targetRevision": "HEAD",
+                },
+            },
+            "status": {
+                "sync": {"status": "Synced"},
+                "health": {"status": "Healthy"},
             },
         },
-        "status": {
-            "sync": {"status": "Synced"},
-            "health": {"status": "Healthy"},
-        },
-    },
-])
+    ],
+})
+
+KUBECTL_EMPTY_LIST_JSON = json.dumps({
+    "apiVersion": "argoproj.io/v1alpha1",
+    "kind": "ApplicationList",
+    "items": [],
+})
 
 ARGOCD_GET_JSON = json.dumps({
     "metadata": {"name": "my-app", "namespace": "argocd"},
@@ -1442,7 +1455,7 @@ async def test_argocd_app_list_empty(mocker):
 
     mock_run.side_effect = [
         _DETECT_OK,
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr=""),
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=KUBECTL_EMPTY_LIST_JSON, stderr=""),
     ]
 
     result = await server.call_tool("argocd_app_list", {})
@@ -1494,7 +1507,7 @@ async def test_argocd_app_list_shows_context(mocker):
 
     mock_run.side_effect = [
         _DETECT_OK,
-        subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr=""),
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=KUBECTL_EMPTY_LIST_JSON, stderr=""),
     ]
 
     result = await server.call_tool("argocd_app_list", {})
@@ -1646,13 +1659,17 @@ async def test_argocd_app_diff_missing_app_name():
 
 
 @pytest.mark.asyncio
-async def test_argocd_app_diff_in_sync(mocker):
+async def test_argocd_app_diff_in_sync(mocker, tmp_path):
+    fake_kubeconfig = tmp_path / "config"
+    fake_kubeconfig.write_text("apiVersion: v1\n")
+    mocker.patch.dict(os.environ, {"KUBECONFIG": str(fake_kubeconfig)})
     mock_run = mocker.patch("subprocess.run")
     server._contexts_listed_at = 0.0
     server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
+        _SET_CTX_OK,  # _build_temp_kubeconfig
         subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
     ]
 
@@ -1664,7 +1681,10 @@ async def test_argocd_app_diff_in_sync(mocker):
 
 
 @pytest.mark.asyncio
-async def test_argocd_app_diff_has_diff(mocker):
+async def test_argocd_app_diff_has_diff(mocker, tmp_path):
+    fake_kubeconfig = tmp_path / "config"
+    fake_kubeconfig.write_text("apiVersion: v1\n")
+    mocker.patch.dict(os.environ, {"KUBECONFIG": str(fake_kubeconfig)})
     mock_run = mocker.patch("subprocess.run")
     server._contexts_listed_at = 0.0
     server._selected_context ="test-ctx"
@@ -1672,6 +1692,7 @@ async def test_argocd_app_diff_has_diff(mocker):
     diff_output = "===== apps/Deployment default/my-app ======\n  replicas: 2 -> 3"
     mock_run.side_effect = [
         _DETECT_OK,
+        _SET_CTX_OK,
         subprocess.CompletedProcess(args=[], returncode=1, stdout=diff_output, stderr=""),
     ]
 
@@ -1683,13 +1704,17 @@ async def test_argocd_app_diff_has_diff(mocker):
 
 
 @pytest.mark.asyncio
-async def test_argocd_app_diff_error(mocker):
+async def test_argocd_app_diff_error(mocker, tmp_path):
+    fake_kubeconfig = tmp_path / "config"
+    fake_kubeconfig.write_text("apiVersion: v1\n")
+    mocker.patch.dict(os.environ, {"KUBECONFIG": str(fake_kubeconfig)})
     mock_run = mocker.patch("subprocess.run")
     server._contexts_listed_at = 0.0
     server._selected_context ="test-ctx"
 
     mock_run.side_effect = [
         _DETECT_OK,
+        _SET_CTX_OK,
         subprocess.CompletedProcess(args=[], returncode=2, stdout="", stderr="FATA[0000] app not found"),
     ]
 
@@ -1701,13 +1726,17 @@ async def test_argocd_app_diff_error(mocker):
 
 
 @pytest.mark.asyncio
-async def test_argocd_app_diff_shows_context_and_app(mocker):
+async def test_argocd_app_diff_shows_context_and_app(mocker, tmp_path):
+    fake_kubeconfig = tmp_path / "config"
+    fake_kubeconfig.write_text("apiVersion: v1\n")
+    mocker.patch.dict(os.environ, {"KUBECONFIG": str(fake_kubeconfig)})
     mock_run = mocker.patch("subprocess.run")
     server._contexts_listed_at = 0.0
     server._selected_context ="prod-cluster"
 
     mock_run.side_effect = [
         _DETECT_OK,
+        _SET_CTX_OK,
         subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
     ]
 
