@@ -25,8 +25,13 @@ ci: $(VENV)
 	$(PYTHON) -m pytest tests/ --cov --cov-report=xml
 
 BUMP ?= patch
+VERSION ?=
 
 release:
+ifdef VERSION
+	@echo "Releasing: v$(VERSION)"; \
+	gh workflow run release.yml -f version=$(VERSION)
+else
 	@LATEST=$$(gh release list --limit 1 --json tagName --jq '.[0].tagName' | sed 's/^v//'); \
 	if [ -z "$$LATEST" ]; then echo "ERROR: could not fetch latest release"; exit 1; fi; \
 	IFS='.' read -r MAJOR MINOR PATCH <<< "$$LATEST"; \
@@ -39,6 +44,7 @@ release:
 	VERSION="$$MAJOR.$$MINOR.$$PATCH"; \
 	echo "Latest: v$$LATEST → Next: v$$VERSION ($(BUMP) bump)"; \
 	gh workflow run release.yml -f version=$$VERSION
+endif
 
 clean:
 	rm -rf $(VENV)
