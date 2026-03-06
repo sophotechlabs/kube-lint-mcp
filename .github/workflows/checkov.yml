@@ -12,9 +12,7 @@ on:
       - Dockerfile
       - .github/workflows/**
 
-permissions:
-  security-events: write
-  contents: read
+permissions: read-all
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +21,9 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
