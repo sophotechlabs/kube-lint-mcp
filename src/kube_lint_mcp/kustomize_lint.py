@@ -1,6 +1,7 @@
 """Kustomize overlay validation utilities."""
 
 import logging
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,8 @@ import yaml
 from kube_lint_mcp.dryrun import KUBECTL_TIMEOUT, kubectl_dry_run
 
 logger = logging.getLogger(__name__)
+
+KUBECTL = shutil.which("kubectl") or "kubectl"
 
 KUSTOMIZATION_FILENAMES = ("kustomization.yaml", "kustomization.yml", "Kustomization")
 
@@ -67,7 +70,7 @@ def validate_kustomization(
         # Step 1: Build with kubectl kustomize
         logger.debug("Running kubectl kustomize %s", kustomize_dir)
         build_result = subprocess.run(
-            ["kubectl", "kustomize", kustomize_dir],
+            [KUBECTL, "kustomize", kustomize_dir],
             capture_output=True,
             text=True,
             timeout=KUBECTL_TIMEOUT,

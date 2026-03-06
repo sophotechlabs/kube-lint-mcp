@@ -3,11 +3,13 @@
 import json
 import logging
 import os
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
+KUBECONFORM = shutil.which("kubeconform") or "kubeconform"
 KUBECONFORM_TIMEOUT = int(os.getenv("KUBE_LINT_KUBECONFORM_TIMEOUT", "120"))
 
 
@@ -98,7 +100,7 @@ def validate_manifests(
         KubeconformResult with per-resource details and counts.
     """
     cmd = [
-        "kubeconform",
+        KUBECONFORM,
         "-output", "json",
         "-summary",
         "-ignore-missing-schemas",

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,8 @@ from kube_lint_mcp.dryrun import build_ctx_args, kubectl_dry_run
 
 logger = logging.getLogger(__name__)
 
+KUBECTL = shutil.which("kubectl") or "kubectl"
+FLUX = shutil.which("flux") or "flux"
 FLUX_TIMEOUT = int(os.getenv("KUBE_LINT_FLUX_TIMEOUT", "60"))
 
 
@@ -34,7 +37,7 @@ def get_kubectl_contexts() -> tuple[list[str], str | None]:
     try:
         # Get all contexts
         result = subprocess.run(
-            ["kubectl", "config", "get-contexts", "-o", "name"],
+            [KUBECTL, "config", "get-contexts", "-o", "name"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -43,7 +46,7 @@ def get_kubectl_contexts() -> tuple[list[str], str | None]:
 
         # Get current context
         result = subprocess.run(
-            ["kubectl", "config", "current-context"],
+            [KUBECTL, "config", "current-context"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -155,7 +158,7 @@ def run_flux_check(context: str | None = None) -> tuple[bool, str]:
     logger.debug("Running flux check with context: %s", context)
     try:
         result = subprocess.run(
-            ["flux", *ctx_args, "check"],
+            [FLUX, *ctx_args, "check"],
             capture_output=True,
             text=True,
             timeout=FLUX_TIMEOUT,
@@ -183,7 +186,7 @@ def get_flux_status(context: str | None = None) -> tuple[bool, str]:
     logger.debug("Getting flux status with context: %s", context)
     try:
         result = subprocess.run(
-            ["flux", *ctx_args, "get", "all", "-A"],
+            [FLUX, *ctx_args, "get", "all", "-A"],
             capture_output=True,
             text=True,
             timeout=FLUX_TIMEOUT,

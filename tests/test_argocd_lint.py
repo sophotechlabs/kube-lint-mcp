@@ -128,7 +128,7 @@ def test_detect_namespace_found(mocker):
 
     assert result == "argocd"
     cmd = mock_run.call_args[0][0]
-    assert "kubectl" in cmd
+    assert cmd[0].endswith("kubectl")
     assert "--all-namespaces" in cmd
     assert "--context" in cmd
     assert "my-ctx" in cmd
@@ -187,7 +187,7 @@ def test_list_apps_auto_detects_namespace(mocker):
     argocd_lint.list_argocd_apps(context="my-ctx")
 
     kubectl_cmd = mock_run.call_args_list[1][0][0]
-    assert "kubectl" in kubectl_cmd
+    assert kubectl_cmd[0].endswith("kubectl")
     assert "-n" in kubectl_cmd
     assert "argo-cd" in kubectl_cmd
 
@@ -268,7 +268,7 @@ def test_build_temp_kubeconfig_creates_copy(mocker, tmp_path):
         assert result.endswith(".kubeconfig")
         # Verify kubectl config set-context was called
         cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "kubectl"
+        assert cmd[0].endswith("kubectl")
         assert "config" in cmd
         assert "set-context" in cmd
         assert "my-ctx" in cmd
@@ -351,9 +351,9 @@ def test_list_apps_uses_kubectl(mocker):
     argocd_lint.list_argocd_apps(context="prod-cluster")
 
     cmd = mock_run.call_args_list[1][0][0]
-    assert cmd[0] == "kubectl"
+    assert cmd[0].endswith("kubectl")
     assert "get" in cmd
-    assert "applications.argoproj.io" in cmd
+    assert cmd.count("applications.argoproj.io") == 1
     assert "--context" in cmd
     assert "prod-cluster" in cmd
 
@@ -496,9 +496,9 @@ def test_get_app_uses_kubectl(mocker):
     argocd_lint.get_argocd_app("my-app", context="prod-cluster")
 
     cmd = mock_run.call_args_list[1][0][0]
-    assert cmd[0] == "kubectl"
+    assert cmd[0].endswith("kubectl")
     assert "get" in cmd
-    assert "applications.argoproj.io/my-app" in cmd
+    assert cmd.count("applications.argoproj.io/my-app") == 1
     assert "--context" in cmd
     assert "prod-cluster" in cmd
 

@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
+KUBECTL = shutil.which("kubectl") or "kubectl"
+ARGOCD = shutil.which("argocd") or "argocd"
 ARGOCD_TIMEOUT = int(os.getenv("KUBE_LINT_ARGOCD_TIMEOUT", "60"))
 
 
@@ -78,7 +80,7 @@ def _detect_argocd_namespace(context: str) -> str | None:
         Namespace name if found, None otherwise
     """
     cmd = [
-        "kubectl", "get", "configmap", "argocd-cm",
+        KUBECTL, "get", "configmap", "argocd-cm",
         "--all-namespaces",
         "--context", context,
         "-o", "jsonpath={.items[0].metadata.namespace}",
@@ -130,7 +132,7 @@ def _build_temp_kubeconfig(context: str, namespace: str) -> str:
     shutil.copy2(kubeconfig_path, temp_path)
     subprocess.run(
         [
-            "kubectl", "config", "set-context", context,
+            KUBECTL, "config", "set-context", context,
             "--namespace", namespace,
             "--kubeconfig", temp_path,
         ],
@@ -181,7 +183,7 @@ def list_argocd_apps(
                 "Specify the namespace parameter explicitly.",
             )
     cmd = [
-        "kubectl", "get", "applications.argoproj.io",
+        KUBECTL, "get", "applications.argoproj.io",
         "-n", namespace,
         "--context", context,
         "-o", "json",
@@ -274,7 +276,7 @@ def get_argocd_app(
                 "Specify the namespace parameter explicitly.",
             )
     cmd = [
-        "kubectl", "get", f"applications.argoproj.io/{app_name}",
+        KUBECTL, "get", f"applications.argoproj.io/{app_name}",
         "-n", namespace,
         "--context", context,
         "-o", "json",
@@ -403,7 +405,7 @@ def diff_argocd_app(
     try:
         temp_kubeconfig = _build_temp_kubeconfig(context, namespace)
         base_args = _build_argocd_args(context)
-        cmd = ["argocd", "app", "diff", app_name, *base_args]
+        cmd = [ARGOCD, "app", "diff", app_name, *base_args]
         env = {**os.environ, "KUBECONFIG": temp_kubeconfig}
 
         logger.debug("Running: %s (KUBECONFIG=%s)", " ".join(cmd), temp_kubeconfig)

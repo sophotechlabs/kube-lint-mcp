@@ -2,11 +2,13 @@
 
 import logging
 import os
+import shutil
 import subprocess
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+KUBECTL = shutil.which("kubectl") or "kubectl"
 KUBECTL_TIMEOUT = int(os.getenv("KUBE_LINT_KUBECTL_TIMEOUT", "60"))
 
 
@@ -68,7 +70,7 @@ def kubectl_dry_run(
             " ".join(source_args),
         )
         client_result = subprocess.run(
-            ["kubectl", *ctx_args, "apply", "--dry-run=client", *source_args],
+            [KUBECTL, *ctx_args, "apply", "--dry-run=client", *source_args],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -92,7 +94,7 @@ def kubectl_dry_run(
             " ".join(source_args),
         )
         server_result = subprocess.run(
-            ["kubectl", *ctx_args, "apply", "--dry-run=server", *source_args],
+            [KUBECTL, *ctx_args, "apply", "--dry-run=server", *source_args],
             capture_output=True,
             text=True,
             timeout=timeout,

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,7 @@ from kube_lint_mcp.dryrun import kubectl_dry_run
 
 logger = logging.getLogger(__name__)
 
+HELM = shutil.which("helm") or "helm"
 HELM_TIMEOUT = int(os.getenv("KUBE_LINT_HELM_TIMEOUT", "60"))
 
 
@@ -80,7 +82,7 @@ def validate_helm_chart(
         )
 
     # Step 1: Run helm lint (no context needed, local-only)
-    lint_cmd = ["helm", "lint", chart_path]
+    lint_cmd = [HELM, "lint", chart_path]
     if values_file:
         lint_cmd.extend(["-f", values_file])
 
@@ -115,7 +117,7 @@ def validate_helm_chart(
     lint_error = lint_result.stderr.strip() if not lint_passed else None
 
     # Step 2: Render chart with helm template (no context needed, local-only)
-    render_cmd = ["helm", "template", release_name, chart_path]
+    render_cmd = [HELM, "template", release_name, chart_path]
     if values_file:
         render_cmd.extend(["-f", values_file])
     if namespace:
