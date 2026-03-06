@@ -1,14 +1,14 @@
 # ---- Stage 1: Build + install ----
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim@sha256:6a27522252aef8432841f224d9baaa6e9fce07b07584154fa0b9a96603af7456 AS builder
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG TARGETARCH
 
-ARG KUBECTL_VERSION=1.32.1
-ARG HELM_VERSION=3.17.1
-ARG FLUX_VERSION=2.4.0
-ARG KUBECONFORM_VERSION=0.6.7
+ARG KUBECTL_VERSION=1.35.2
+ARG HELM_VERSION=3.20.0
+ARG FLUX_VERSION=2.8.1
+ARG KUBECONFORM_VERSION=0.7.0
 
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
@@ -32,7 +32,7 @@ RUN curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECO
     | tar xz -C . kubeconform
 
 # argocd
-ARG ARGOCD_VERSION=2.13.3
+ARG ARGOCD_VERSION=2.14.21
 RUN curl -fsSL "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-${TARGETARCH}" -o argocd \
     && chmod +x argocd
 
@@ -41,7 +41,7 @@ COPY . /src
 RUN pip install --no-cache-dir --prefix=/install /src
 
 # ---- Stage 2: Runtime ----
-FROM python:3.14-slim
+FROM python:3.14-slim@sha256:6a27522252aef8432841f224d9baaa6e9fce07b07584154fa0b9a96603af7456
 
 RUN groupadd -r nonroot && useradd -r -g nonroot -d /home/nonroot -m nonroot
 
