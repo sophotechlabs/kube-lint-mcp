@@ -15,7 +15,7 @@ from kube_lint_mcp.yaml_lint import (
 
 def test_yaml_extensions_contains_yaml_and_yml():
     """Should match .yaml and .yml extensions."""
-    assert YAML_EXTENSIONS == {".yaml", ".yml"}
+    assert {".yaml", ".yml"} == YAML_EXTENSIONS
 
 # _check_tabs tests
 
