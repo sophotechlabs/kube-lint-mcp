@@ -4,6 +4,14 @@ import subprocess
 
 from kube_lint_mcp import argocd_lint
 
+# constant tests
+
+
+def test_argocd_timeout_default_value():
+    """Should default to 60 seconds."""
+    assert argocd_lint.ARGOCD_TIMEOUT == 60
+
+
 # Simulates successful namespace auto-detection (kubectl get configmap argocd-cm)
 _DETECT_OK = subprocess.CompletedProcess(args=[], returncode=0, stdout="argocd", stderr="")
 _DETECT_FAIL = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="not found")
@@ -827,3 +835,20 @@ def test_get_app_with_non_dict_resource(mocker):
     assert result.resources is not None
     assert len(result.resources) == 1
     assert result.resources[0]["kind"] == "Service"
+
+
+# Edge case: items value is not a list
+
+def test_list_apps_items_not_a_list(mocker):
+    """Should handle items being a non-list value (e.g. string)."""
+    mock_run = mocker.patch("subprocess.run")
+    data = json.dumps({"items": "not a list"})
+    mock_run.side_effect = [
+        _DETECT_OK,
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=data, stderr=""),
+    ]
+
+    result = argocd_lint.list_argocd_apps(context="my-ctx")
+
+    assert result.success is True
+    assert len(result.apps) == 0

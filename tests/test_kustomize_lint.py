@@ -2,6 +2,17 @@ import subprocess
 
 from kube_lint_mcp import kustomize_lint
 
+# constant tests
+
+
+def test_kustomization_filenames_all_variants():
+    """Should include all three filename variants."""
+    assert kustomize_lint.KUSTOMIZATION_FILENAMES == (
+        "kustomization.yaml",
+        "kustomization.yml",
+        "Kustomization",
+    )
+
 # is_kustomization tests
 
 

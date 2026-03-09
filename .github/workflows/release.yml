@@ -69,10 +69,10 @@ jobs:
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git checkout -b "$BRANCH"
           git add pyproject.toml server.json CHANGELOG.md
-          git commit -m "release: v${{ inputs.version }}"
+          git commit -m "build: v${{ inputs.version }}"
           git push -u origin "$BRANCH"
           gh pr create \
-            --title "release: v${{ inputs.version }}" \
+            --title "build: v${{ inputs.version }}" \
             --body "Automated release PR for v${{ inputs.version }}. Merge to trigger release." \
             --base main \
             --head "$BRANCH"

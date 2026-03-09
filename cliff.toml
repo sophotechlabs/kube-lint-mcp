@@ -56,7 +56,7 @@ commit_parsers = [
   { message = "^test", group = "<!-- 6 -->Testing" },
   { message = "^chore\\(deps\\)", group = "<!-- 7 -->Dependencies" },
   { message = "^chore|^ci", group = "<!-- 8 -->Miscellaneous" },
-  { message = "^release:", skip = true },
+  { message = "^build: v", skip = true },
   { message = "^Merge", skip = true },
   { message = "^Bump ", group = "<!-- 7 -->Dependencies" },
 ]

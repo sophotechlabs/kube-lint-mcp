@@ -6,6 +6,14 @@ import pytest
 
 from kube_lint_mcp import server
 
+# constant tests
+
+
+def test_context_select_min_delay_value():
+    """Should enforce 2.0 second delay between list and select."""
+    assert server._CONTEXT_SELECT_MIN_DELAY == 2.0
+
+
 # list_tools tests
 
 

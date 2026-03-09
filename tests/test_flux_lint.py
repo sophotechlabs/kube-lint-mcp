@@ -2,6 +2,13 @@ import subprocess
 
 from kube_lint_mcp import flux_lint
 
+# constant tests
+
+
+def test_flux_timeout_default_value():
+    """Should default to 60 seconds."""
+    assert flux_lint.FLUX_TIMEOUT == 60
+
 # find_yaml_files tests
 
 

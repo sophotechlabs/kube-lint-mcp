@@ -3,11 +3,19 @@ import pathlib
 import yaml
 
 from kube_lint_mcp.yaml_lint import (
+    YAML_EXTENSIONS,
     _check_tabs,
     _find_yaml_files,
     validate_file,
     validate_yaml,
 )
+
+# constant tests
+
+
+def test_yaml_extensions_contains_yaml_and_yml():
+    """Should match .yaml and .yml extensions."""
+    assert YAML_EXTENSIONS == {".yaml", ".yml"}
 
 # _check_tabs tests
 

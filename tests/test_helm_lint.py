@@ -2,6 +2,13 @@ import subprocess
 
 from kube_lint_mcp import helm_lint
 
+# constant tests
+
+
+def test_helm_timeout_default_value():
+    """Should default to 60 seconds."""
+    assert helm_lint.HELM_TIMEOUT == 60
+
 # is_helm_chart tests
 
 
