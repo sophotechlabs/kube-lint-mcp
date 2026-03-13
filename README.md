@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io)
 
-mcp-name: io.github.archy-rock3t-cloud/kube-lint-mcp
+mcp-name: io.github.sophotechlabs/kube-lint-mcp
 
 MCP server that validates Kubernetes manifests, Helm charts, and ArgoCD applications before you commit — preventing deployment and GitOps reconciliation failures.
 
