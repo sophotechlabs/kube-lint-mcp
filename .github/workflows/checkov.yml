@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@dae50a5e9eb93ac7dc96b2aea92a185131103539 # v12
+        uses: bridgecrewio/checkov-action@0ce65fae06c148e349f955c3c35ad049c11e838c # v12
         with:
           directory: .
           framework: dockerfile,github_actions
@@ -38,7 +38,7 @@ jobs:
           soft_fail: true
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4
         if: always()
         with:
           sarif_file: checkov-results.sarif
