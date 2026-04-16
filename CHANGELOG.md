@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-04-10
+
+### Dependencies
+
+- Bump the minor-patch group across 1 directory with 6 updates (#93)
+- Bump python from `faee120` to `6f873e3` (#92)
+- Bump codecov/codecov-action from 5.5.2 to 6.0.0 (#91)
+- Bump dependabot/fetch-metadata from 2.5.0 to 3.0.0 (#90)
+- Bump the minor-patch group across 1 directory with 5 updates (#87)
+- Bump actions/create-github-app-token from 2.2.1 to 3.0.0 (#86)
+- Bump docker/setup-qemu-action from 3.7.0 to 4.0.0 (#85)
 ## [0.8.1] - 2026-03-26
 
 ### Dependencies
