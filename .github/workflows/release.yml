@@ -39,7 +39,7 @@ jobs:
 
       - name: Generate App token
         id: app-token
-        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v2
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v2
         with:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -52,7 +52,7 @@ jobs:
           sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
 
       - name: Generate changelog
-        uses: orhun/git-cliff-action@c93ef52f3d0ddcdcc9bd5447d98d458a11cd4f72 # v4.7.1
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
           config: cliff.toml
           args: --unreleased --tag "v${{ inputs.version }}" --prepend CHANGELOG.md

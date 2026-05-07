@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 5
     if: github.actor == 'archy-rock3t-cloud' || github.actor == 'dependabot[bot]'
     steps:
-      - uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v2
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v2
         id: app-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 5
     if: startsWith(github.head_ref, 'release/')
     steps:
-      - uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v2
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v2
         id: approver-token
         with:
           app-id: ${{ vars.APPROVER_APP_ID }}
