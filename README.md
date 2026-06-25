@@ -3,6 +3,7 @@
 [![CI](https://github.com/sophotechlabs/kube-lint-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/sophotechlabs/kube-lint-mcp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sophotechlabs/kube-lint-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/sophotechlabs/kube-lint-mcp)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/sophotechlabs/kube-lint-mcp/badge)](https://scorecard.dev/viewer/?uri=github.com/sophotechlabs/kube-lint-mcp)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sophotechlabs_kube-lint-mcp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sophotechlabs_kube-lint-mcp)
 [![PyPI](https://img.shields.io/pypi/v/kube-lint-mcp.svg)](https://pypi.org/project/kube-lint-mcp/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/kube-lint-mcp.svg)](https://pypi.org/project/kube-lint-mcp/)
 [![Docker](https://ghcr-badge.egpl.dev/sophotechlabs/kube-lint-mcp/latest_tag?trim=major&label=docker&ignore=latest,sha256%2A)](https://github.com/sophotechlabs/kube-lint-mcp/pkgs/container/kube-lint-mcp)
