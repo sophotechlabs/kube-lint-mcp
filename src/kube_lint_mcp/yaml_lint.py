@@ -42,14 +42,14 @@ def _check_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> di
     """Construct a mapping while checking for duplicate keys."""
     mapping: dict[str, object] = {}
     for key_node, value_node in node.value:
-        key = loader.construct_object(key_node)  # type: ignore[no-untyped-call]
+        key = loader.construct_object(key_node)
         if key in mapping:
             mark = key_node.start_mark
             raise yaml.MarkedYAMLError(
                 problem=f"duplicate key: {key!r}",
                 problem_mark=mark,
             )
-        mapping[key] = loader.construct_object(value_node)  # type: ignore[no-untyped-call]
+        mapping[key] = loader.construct_object(value_node)
     return mapping
 
 

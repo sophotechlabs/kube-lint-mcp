@@ -33,7 +33,7 @@ dev = [
     "pytest-mock>=3.10",
     "ruff>=0.15,<0.16",
     "mypy>=2.1",
-    "types-PyYAML",
+    "types-PyYAML>=6.0.12.20260510",
 ]
 
 [project.urls]

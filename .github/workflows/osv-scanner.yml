@@ -37,6 +37,8 @@ jobs:
           lines = []
           for pkg in report.get('install', []):
               m = pkg.get('metadata', {})
+              if m.get('name', '').replace('_', '-').lower() == 'kube-lint-mcp':
+                  continue
               lines.append(f'{m[\"name\"]}=={m[\"version\"]}')
           pathlib.Path('requirements.txt').write_text('\n'.join(sorted(lines)) + '\n')
           "
