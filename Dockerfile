@@ -5,11 +5,11 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG TARGETARCH
 
-ARG KUBECTL_VERSION=1.35.2
-ARG HELM_VERSION=3.20.0
-ARG FLUX_VERSION=2.8.1
-ARG KUBECONFORM_VERSION=0.7.0
-ARG ARGOCD_VERSION=3.3.2
+ARG KUBECTL_VERSION=1.36.2
+ARG HELM_VERSION=3.21.2
+ARG FLUX_VERSION=2.8.8
+ARG KUBECONFORM_VERSION=0.8.0
+ARG ARGOCD_VERSION=3.4.4
 
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
