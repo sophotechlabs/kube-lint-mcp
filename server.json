@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.archy-rock3t-cloud/kube-lint-mcp",
+  "name": "io.github.sophotechlabs/kube-lint-mcp",
   "description": "Validate Kubernetes manifests, Helm charts, Kustomize overlays, and FluxCD resources",
   "version": "0.8.5",
   "packages": [
