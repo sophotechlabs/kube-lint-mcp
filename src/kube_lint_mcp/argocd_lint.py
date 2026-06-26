@@ -212,7 +212,7 @@ def list_argocd_apps(
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        logger.error("Failed to parse kubectl output: %s", exc)
+        logger.exception("Failed to parse kubectl output")
         return ArgoAppListResult(
             success=False,
             error=f"Failed to parse kubectl output: {exc}",
@@ -305,7 +305,7 @@ def get_argocd_app(
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        logger.error("Failed to parse kubectl output: %s", exc)
+        logger.exception("Failed to parse kubectl output")
         return ArgoAppGetResult(
             success=False,
             error=f"Failed to parse kubectl output: {exc}",

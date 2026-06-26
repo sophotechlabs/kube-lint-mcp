@@ -1,6 +1,23 @@
 """Output formatting for validation results."""
 
+from dataclasses import dataclass
+
 from kube_lint_mcp import argocd_lint, flux_lint, helm_lint, kubeconform_lint, kustomize_lint, yaml_lint
+
+MSG_SAFE_TO_COMMIT = "All validations passed. Safe to commit."
+MSG_DO_NOT_COMMIT = "DO NOT COMMIT - Fix errors first!"
+LABEL_CLIENT_DRYRUN = "Client dry-run"
+LABEL_SERVER_DRYRUN = "Server dry-run"
+SEPARATOR = "=" * 50
+
+
+@dataclass
+class Step:
+    name: str
+    passed: bool
+    error: str | None = None
+    warnings: list[str] | None = None
+    pass_detail: str | None = None
 
 
 def format_step(
@@ -8,10 +25,13 @@ def format_step(
     passed: bool,
     error: str | None = None,
     warnings: list[str] | None = None,
+    pass_detail: str | None = None,
 ) -> list[str]:
     """Return output lines for a single validation step."""
     if passed:
-        if warnings:
+        if pass_detail:
+            lines = [f"{name}: PASS ({pass_detail})"]
+        elif warnings:
             lines = [f"{name}: PASS (with warnings)"]
             for w in warnings:
                 lines.append(f"  Warning: {w}")
@@ -27,15 +47,31 @@ def format_step(
 def format_summary(passed: int, failed: int) -> list[str]:
     """Return the summary footer lines used by dryrun handlers."""
     lines = [
-        "=" * 50,
+        SEPARATOR,
         f"Summary: {passed} passed, {failed} failed",
         "",
     ]
     if failed > 0:
-        lines.append("DO NOT COMMIT - Fix errors first!")
+        lines.append(MSG_DO_NOT_COMMIT)
     else:
-        lines.append("All validations passed. Safe to commit.")
+        lines.append(MSG_SAFE_TO_COMMIT)
     return lines
+
+
+def render_steps(steps: list[Step]) -> tuple[list[str], int, int]:
+    lines: list[str] = []
+    passed = 0
+    failed = 0
+    for step in steps:
+        lines.extend(
+            format_step(step.name, step.passed, step.error, step.warnings, step.pass_detail)
+        )
+        if step.passed:
+            passed += 1
+        else:
+            failed += 1
+        lines.append("")
+    return lines, passed, failed
 
 
 def format_flux_results(
@@ -48,7 +84,7 @@ def format_flux_results(
         "FluxCD Dry-Run Validation",
         f"Context: {context}",
         f"Path: {path}",
-        "=" * 50,
+        SEPARATOR,
         "",
     ]
 
@@ -59,20 +95,20 @@ def format_flux_results(
         lines.append(f"File: {r.file}")
 
         if r.client_passed:
-            lines.append("  Client dry-run: PASS")
+            lines.append(f"  {LABEL_CLIENT_DRYRUN}: PASS")
         else:
-            step = format_step("Client dry-run", False, r.client_error)
+            step = format_step(LABEL_CLIENT_DRYRUN, False, r.client_error)
             lines.extend(["  " + ln for ln in step])
             failed += 1
             lines.append("")
             continue
 
         if r.server_passed:
-            step = format_step("Server dry-run", True, warnings=r.warnings)
+            step = format_step(LABEL_SERVER_DRYRUN, True, warnings=r.warnings)
             lines.extend(["  " + ln for ln in step])
             passed += 1
         else:
-            step = format_step("Server dry-run", False, r.server_error)
+            step = format_step(LABEL_SERVER_DRYRUN, False, r.server_error)
             lines.extend(["  " + ln for ln in step])
             failed += 1
 
@@ -92,42 +128,27 @@ def format_kustomize_result(
         "Kustomize Dry-Run Validation",
         f"Context: {context}",
         f"Path: {path}",
-        "=" * 50,
+        SEPARATOR,
         "",
     ]
 
-    passed = 0
-    failed = 0
-
-    if result.build_passed:
-        lines.append(f"Kustomize build: PASS ({result.resource_count} resources)")
-        passed += 1
-    else:
-        lines.extend(format_step("Kustomize build", False, result.build_error))
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        format_step("Client dry-run", result.client_passed, result.client_error)
-    )
-    if result.client_passed:
-        passed += 1
-    else:
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        format_step(
-            "Server dry-run", result.server_passed,
-            result.server_error, result.warnings,
-        )
-    )
-    if result.server_passed:
-        passed += 1
-    else:
-        failed += 1
-
-    lines.append("")
+    steps = [
+        Step(
+            "Kustomize build",
+            result.build_passed,
+            result.build_error,
+            pass_detail=f"{result.resource_count} resources",
+        ),
+        Step(LABEL_CLIENT_DRYRUN, result.client_passed, result.client_error),
+        Step(
+            LABEL_SERVER_DRYRUN,
+            result.server_passed,
+            result.server_error,
+            warnings=result.warnings,
+        ),
+    ]
+    step_lines, passed, failed = render_steps(steps)
+    lines.extend(step_lines)
     lines.extend(format_summary(passed, failed))
     return "\n".join(lines)
 
@@ -149,53 +170,49 @@ def format_helm_result(
         lines.append(f"Values: {values_file}")
     if namespace:
         lines.append(f"Namespace: {namespace}")
-    lines.extend(["=" * 50, ""])
+    lines.extend([SEPARATOR, ""])
 
-    passed = 0
-    failed = 0
-
-    lines.extend(format_step("Helm lint", result.lint_passed, result.lint_error))
-    if result.lint_passed:
-        passed += 1
-    else:
-        failed += 1
-    lines.append("")
-
-    if result.render_passed:
-        lines.append(f"Helm template: PASS ({result.resource_count} resources)")
-        passed += 1
-    else:
-        lines.extend(format_step("Helm template", False, result.render_error))
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        format_step("Client dry-run", result.client_passed, result.client_error)
-    )
-    if result.client_passed:
-        passed += 1
-    else:
-        failed += 1
-    lines.append("")
-
-    lines.extend(
-        format_step(
-            "Server dry-run", result.server_passed,
-            result.server_error, result.warnings,
-        )
-    )
-    if result.server_passed:
-        passed += 1
-    else:
-        failed += 1
-
-    lines.append("")
-    lines.append("=" * 50)
-    if failed > 0:
-        lines.append("DO NOT COMMIT - Fix errors first!")
-    else:
-        lines.append("All validations passed. Safe to commit.")
+    steps = [
+        Step("Helm lint", result.lint_passed, result.lint_error),
+        Step(
+            "Helm template",
+            result.render_passed,
+            result.render_error,
+            pass_detail=f"{result.resource_count} resources",
+        ),
+        Step(LABEL_CLIENT_DRYRUN, result.client_passed, result.client_error),
+        Step(
+            LABEL_SERVER_DRYRUN,
+            result.server_passed,
+            result.server_error,
+            warnings=result.warnings,
+        ),
+    ]
+    step_lines, _passed, failed = render_steps(steps)
+    lines.extend(step_lines)
+    lines.append(SEPARATOR)
+    lines.append(MSG_DO_NOT_COMMIT if failed else MSG_SAFE_TO_COMMIT)
     return "\n".join(lines)
+
+
+def _format_kubeconform_resource(resource: kubeconform_lint.KubeconformResourceResult) -> list[str]:
+    label = f"{resource.kind}/{resource.name}" if resource.name else resource.kind
+    api = f" ({resource.version})" if resource.version else ""
+
+    lines: list[str] = []
+    if resource.status == "statusValid":
+        lines.append(f"  {label}{api}: PASS")
+    elif resource.status == "statusInvalid":
+        lines.append(f"  {label}{api}: INVALID")
+        if resource.msg:
+            lines.extend(f"    {msg_line}" for msg_line in resource.msg.splitlines())
+    elif resource.status == "statusError":
+        lines.append(f"  {label}{api}: ERROR")
+        if resource.msg:
+            lines.extend(f"    {msg_line}" for msg_line in resource.msg.splitlines())
+    elif resource.status == "statusSkipped":
+        lines.append(f"  {label}{api}: SKIPPED")
+    return lines
 
 
 def format_kubeconform_result(
@@ -213,32 +230,16 @@ def format_kubeconform_result(
         lines.append(f"Kubernetes version: {kubernetes_version}")
     if strict:
         lines.append("Strict mode: enabled")
-    lines.extend(["=" * 50, ""])
+    lines.extend([SEPARATOR, ""])
 
     if not result.resources:
         lines.append("No resources found to validate.")
     else:
-        for r in result.resources:
-            label = f"{r.kind}/{r.name}" if r.name else r.kind
-            api = f" ({r.version})" if r.version else ""
-
-            if r.status == "statusValid":
-                lines.append(f"  {label}{api}: PASS")
-            elif r.status == "statusInvalid":
-                lines.append(f"  {label}{api}: INVALID")
-                if r.msg:
-                    for msg_line in r.msg.splitlines():
-                        lines.append(f"    {msg_line}")
-            elif r.status == "statusError":
-                lines.append(f"  {label}{api}: ERROR")
-                if r.msg:
-                    for msg_line in r.msg.splitlines():
-                        lines.append(f"    {msg_line}")
-            elif r.status == "statusSkipped":
-                lines.append(f"  {label}{api}: SKIPPED")
+        for resource in result.resources:
+            lines.extend(_format_kubeconform_resource(resource))
 
     lines.append("")
-    lines.append("=" * 50)
+    lines.append(SEPARATOR)
     lines.append(
         f"Summary: {result.valid} valid, {result.invalid} invalid,"
         f" {result.errors} errors, {result.skipped} skipped"
@@ -246,10 +247,23 @@ def format_kubeconform_result(
     lines.append("")
 
     if result.passed:
-        lines.append("All validations passed. Safe to commit.")
+        lines.append(MSG_SAFE_TO_COMMIT)
     else:
         lines.append("DO NOT COMMIT - Fix schema errors first!")
     return "\n".join(lines)
+
+
+def _format_yaml_file(f: yaml_lint.YamlFileResult) -> list[str]:
+    if f.valid and not f.warnings:
+        return [f"  {f.file}: PASS ({f.document_count} documents)"]
+    if f.valid and f.warnings:
+        lines = [f"  {f.file}: PASS with warnings ({f.document_count} documents)"]
+        lines.extend(f"    Warning: {w}" for w in f.warnings)
+        return lines
+    lines = [f"  {f.file}: FAIL"]
+    lines.extend(f"    Error: {e}" for e in f.errors)
+    lines.extend(f"    Warning: {w}" for w in f.warnings)
+    return lines
 
 
 def format_yaml_result(
@@ -260,7 +274,7 @@ def format_yaml_result(
     lines = [
         "YAML Syntax Validation",
         f"Path: {path}",
-        "=" * 50,
+        SEPARATOR,
         "",
     ]
 
@@ -268,21 +282,10 @@ def format_yaml_result(
         lines.append("No YAML files found.")
     else:
         for f in result.files:
-            if f.valid and not f.warnings:
-                lines.append(f"  {f.file}: PASS ({f.document_count} documents)")
-            elif f.valid and f.warnings:
-                lines.append(f"  {f.file}: PASS with warnings ({f.document_count} documents)")
-                for w in f.warnings:
-                    lines.append(f"    Warning: {w}")
-            else:
-                lines.append(f"  {f.file}: FAIL")
-                for e in f.errors:
-                    lines.append(f"    Error: {e}")
-                for w in f.warnings:
-                    lines.append(f"    Warning: {w}")
+            lines.extend(_format_yaml_file(f))
             lines.append("")
 
-    lines.append("=" * 50)
+    lines.append(SEPARATOR)
     lines.append(
         f"Summary: {result.valid_files} valid, {result.invalid_files} invalid"
         f" ({result.total_files} files)"
@@ -308,7 +311,7 @@ def format_argocd_app_list_result(
     ]
     if namespace:
         lines.append(f"Namespace: {namespace}")
-    lines.extend(["=" * 50, ""])
+    lines.extend([SEPARATOR, ""])
 
     if not result.apps:
         lines.append("No ArgoCD applications found.")
@@ -324,7 +327,7 @@ def format_argocd_app_list_result(
                 lines.append(f"    Revision: {app.target_revision}")
             lines.append("")
 
-    lines.append("=" * 50)
+    lines.append(SEPARATOR)
     lines.append(f"Total: {len(result.apps)} application(s)")
     return "\n".join(lines)
 
@@ -338,7 +341,7 @@ def format_argocd_app_get_result(
         "ArgoCD Application Detail",
         f"Context: {context}",
         f"Application: {result.name}",
-        "=" * 50,
+        SEPARATOR,
         "",
         f"  Project: {result.project}",
         f"  Namespace: {result.namespace}",
@@ -374,7 +377,7 @@ def format_argocd_app_get_result(
             lines.append(f"  {label}: sync={status_str} health={health}")
         lines.append("")
 
-    lines.append("=" * 50)
+    lines.append(SEPARATOR)
     return "\n".join(lines)
 
 
@@ -388,7 +391,7 @@ def format_argocd_app_diff_result(
         "ArgoCD Application Diff",
         f"Context: {context}",
         f"Application: {app_name}",
-        "=" * 50,
+        SEPARATOR,
         "",
     ]
 
@@ -400,5 +403,5 @@ def format_argocd_app_diff_result(
         lines.append(result.diff_output)
 
     lines.append("")
-    lines.append("=" * 50)
+    lines.append(SEPARATOR)
     return "\n".join(lines)
