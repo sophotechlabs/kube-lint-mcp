@@ -14,6 +14,11 @@ KUBECTL = shutil.which("kubectl") or "kubectl"
 ARGOCD = shutil.which("argocd") or "argocd"
 ARGOCD_TIMEOUT = int(os.getenv("KUBE_LINT_ARGOCD_TIMEOUT", "60"))
 
+NAMESPACE_NOT_FOUND_ERROR = (
+    "Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
+    "Specify the namespace parameter explicitly."
+)
+
 
 @dataclass
 class ArgoAppSummary:
@@ -158,6 +163,38 @@ def _extract_source(spec: dict[str, object]) -> tuple[str, str, str]:
     return repo_url, path, target_revision
 
 
+def _extract_resources(status: dict[str, object]) -> list[dict[str, str]] | None:
+    raw_resources = status.get("resources")
+    if isinstance(raw_resources, list) and raw_resources:
+        resources: list[dict[str, str]] = []
+        for r in raw_resources:
+            if not isinstance(r, dict):
+                continue
+            r_health = r.get("health", {})
+            resources.append({
+                "kind": str(r.get("kind", "")),
+                "namespace": str(r.get("namespace", "")),
+                "name": str(r.get("name", "")),
+                "status": str(r.get("status", "")),
+                "health": str(r_health.get("status", "")) if isinstance(r_health, dict) else "",
+            })
+        return resources
+    return None
+
+
+def _extract_conditions(status: dict[str, object]) -> list[str] | None:
+    raw_conditions = status.get("conditions")
+    if isinstance(raw_conditions, list) and raw_conditions:
+        conditions: list[str] = []
+        for c in raw_conditions:
+            if isinstance(c, dict):
+                ctype = c.get("type", "")
+                cmsg = c.get("message", "")
+                conditions.append(f"{ctype}: {cmsg}" if cmsg else str(ctype))
+        return conditions
+    return None
+
+
 def list_argocd_apps(
     context: str,
     namespace: str | None = None,
@@ -179,8 +216,7 @@ def list_argocd_apps(
         if not namespace:
             return ArgoAppListResult(
                 success=False,
-                error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
-                "Specify the namespace parameter explicitly.",
+                error=NAMESPACE_NOT_FOUND_ERROR,
             )
     cmd = [
         KUBECTL, "get", "applications.argoproj.io",
@@ -272,8 +308,7 @@ def get_argocd_app(
         if not namespace:
             return ArgoAppGetResult(
                 success=False,
-                error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
-                "Specify the namespace parameter explicitly.",
+                error=NAMESPACE_NOT_FOUND_ERROR,
             )
     cmd = [
         KUBECTL, "get", f"applications.argoproj.io/{app_name}",
@@ -323,33 +358,8 @@ def get_argocd_app(
     sync = status.get("sync", {})
     health = status.get("health", {})
 
-    # Extract resource statuses
-    resources: list[dict[str, str]] | None = None
-    raw_resources = status.get("resources")
-    if isinstance(raw_resources, list) and raw_resources:
-        resources = []
-        for r in raw_resources:
-            if not isinstance(r, dict):
-                continue
-            r_health = r.get("health", {})
-            resources.append({
-                "kind": str(r.get("kind", "")),
-                "namespace": str(r.get("namespace", "")),
-                "name": str(r.get("name", "")),
-                "status": str(r.get("status", "")),
-                "health": str(r_health.get("status", "")) if isinstance(r_health, dict) else "",
-            })
-
-    # Extract conditions
-    conditions: list[str] | None = None
-    raw_conditions = status.get("conditions")
-    if isinstance(raw_conditions, list) and raw_conditions:
-        conditions = []
-        for c in raw_conditions:
-            if isinstance(c, dict):
-                ctype = c.get("type", "")
-                cmsg = c.get("message", "")
-                conditions.append(f"{ctype}: {cmsg}" if cmsg else str(ctype))
+    resources = _extract_resources(status)
+    conditions = _extract_conditions(status)
 
     return ArgoAppGetResult(
         success=True,
@@ -397,8 +407,7 @@ def diff_argocd_app(
         if not namespace:
             return ArgoAppDiffResult(
                 success=False,
-                error="Could not auto-detect ArgoCD namespace (argocd-cm configmap not found in any namespace). "
-                "Specify the namespace parameter explicitly.",
+                error=NAMESPACE_NOT_FOUND_ERROR,
             )
 
     temp_kubeconfig = None

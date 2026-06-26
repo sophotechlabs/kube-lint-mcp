@@ -33,6 +33,8 @@ _contexts_listed_at: float | None = None  # timestamp when list_kube_contexts wa
 # Prevents AI from calling both in the same response without waiting for user input.
 _CONTEXT_SELECT_MIN_DELAY: float = 2.0
 
+_ERR_PATH_REQUIRED = "Error: 'path' parameter is required"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -404,7 +406,7 @@ def _handle_flux_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
 
     path = arguments.get("path")
     if not path:
-        return _text("Error: 'path' parameter is required")
+        return _text(_ERR_PATH_REQUIRED)
     path = _normalize_path(path)
 
     results = flux_lint.validate_manifests(path, context=ctx)
@@ -446,7 +448,7 @@ def _handle_kustomize_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
 
     path = arguments.get("path")
     if not path:
-        return _text("Error: 'path' parameter is required")
+        return _text(_ERR_PATH_REQUIRED)
     path = _normalize_path(path)
 
     if not kustomize_lint.is_kustomization(path):
@@ -499,7 +501,7 @@ def _handle_helm_dryrun(arguments: dict[str, Any]) -> list[TextContent]:
 def _handle_kubeconform_validate(arguments: dict[str, Any]) -> list[TextContent]:
     path = arguments.get("path")
     if not path:
-        return _text("Error: 'path' parameter is required")
+        return _text(_ERR_PATH_REQUIRED)
     path = _normalize_path(path)
 
     kubernetes_version = arguments.get("kubernetes_version", "master")
@@ -522,7 +524,7 @@ def _handle_kubeconform_validate(arguments: dict[str, Any]) -> list[TextContent]
 def _handle_yaml_validate(arguments: dict[str, Any]) -> list[TextContent]:
     path = arguments.get("path")
     if not path:
-        return _text("Error: 'path' parameter is required")
+        return _text(_ERR_PATH_REQUIRED)
     path = _normalize_path(path)
 
     result = yaml_lint.validate_yaml(path)
