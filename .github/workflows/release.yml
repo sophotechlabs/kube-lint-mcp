@@ -50,6 +50,7 @@ jobs:
       - name: Bump version in server.json
         run: |
           sed -i 's/"version": ".*"/"version": "${{ inputs.version }}"/' server.json
+          sed -i 's#\(ghcr.io/sophotechlabs/kube-lint-mcp:\)[^"]*#\1${{ inputs.version }}#' server.json
 
       - name: Generate changelog
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0

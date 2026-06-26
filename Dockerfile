@@ -39,6 +39,8 @@ RUN curl -fsSL "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_
 # ---- Stage 2: Runtime ----
 FROM python:3.14-alpine@sha256:27ac3ba1699f7a526ad19bf0d35c12369b43d3439e08297a880398d97899c3d8
 
+LABEL io.modelcontextprotocol.server.name="io.github.sophotechlabs/kube-lint-mcp"
+
 RUN addgroup -S nonroot && adduser -S -G nonroot -h /home/nonroot nonroot
 
 COPY --from=tools /tools/kubectl /tools/helm /tools/flux /tools/kubeconform /tools/argocd /usr/local/bin/

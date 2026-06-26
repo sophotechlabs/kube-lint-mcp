@@ -13,9 +13,8 @@
       }
     },
     {
-      "registryType": "docker",
-      "identifier": "sophotechlabs/kube-lint-mcp",
-      "version": "0.8.6",
+      "registryType": "oci",
+      "identifier": "ghcr.io/sophotechlabs/kube-lint-mcp:0.8.6",
       "transport": {
         "type": "stdio"
       }
