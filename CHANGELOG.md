@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8] - 2026-06-26
+
+### Dependencies
+
+- bump actions/attest-build-provenance (#115)
+- bump actions/dependency-review-action from 4.9.0 to 5.0.0 (#114)
+- bump actions/checkout from 6.0.2 to 7.0.0 (#113)
+- bump codecov/codecov-action from 6.0.0 to 7.0.0 (#112)
+
+### Miscellaneous
+
+- disable certain scans on bot PRs
 ## [0.8.7] - 2026-06-26
 
 ### Fixed
