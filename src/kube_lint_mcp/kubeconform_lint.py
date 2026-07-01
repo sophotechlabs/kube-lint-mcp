@@ -84,6 +84,28 @@ def _parse_output(stdout: str) -> list[KubeconformResourceResult]:
     return resources
 
 
+def _parse_summary(stdout: str) -> dict[str, int] | None:
+    """Extract kubeconform's top-level summary counts from wrapped JSON output.
+
+    Returns None when the output is not wrapped JSON or carries no summary object,
+    signalling the caller to fall back to counting resources by status.
+    """
+    stdout = stdout.strip()
+    if not stdout:
+        return None
+
+    try:
+        data = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    if isinstance(data, dict) and isinstance(data.get("summary"), dict):
+        summary: dict[str, int] = data["summary"]
+        return summary
+
+    return None
+
+
 def validate_manifests(
     path: str,
     kubernetes_version: str = "master",
@@ -103,6 +125,7 @@ def validate_manifests(
         KUBECONFORM,
         "-output", "json",
         "-summary",
+        "-verbose",
         "-ignore-missing-schemas",
     ]
 
@@ -139,11 +162,18 @@ def validate_manifests(
         )
 
     resources = _parse_output(proc.stdout)
+    summary = _parse_summary(proc.stdout)
 
-    valid = sum(1 for r in resources if r.status == "statusValid")
-    invalid = sum(1 for r in resources if r.status == "statusInvalid")
-    errors = sum(1 for r in resources if r.status == "statusError")
-    skipped = sum(1 for r in resources if r.status == "statusSkipped")
+    if summary is not None:
+        valid = summary.get("valid", 0)
+        invalid = summary.get("invalid", 0)
+        errors = summary.get("errors", 0)
+        skipped = summary.get("skipped", 0)
+    else:
+        valid = sum(1 for r in resources if r.status == "statusValid")
+        invalid = sum(1 for r in resources if r.status == "statusInvalid")
+        errors = sum(1 for r in resources if r.status == "statusError")
+        skipped = sum(1 for r in resources if r.status == "statusSkipped")
 
     passed = invalid == 0 and errors == 0
 

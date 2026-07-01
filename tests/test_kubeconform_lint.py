@@ -5,6 +5,7 @@ from kube_lint_mcp.kubeconform_lint import (
     KUBECONFORM_TIMEOUT,
     _make_resource,
     _parse_output,
+    _parse_summary,
     validate_manifests,
 )
 
@@ -115,6 +116,40 @@ def test_parse_output_mixed_valid_and_garbage():
     assert len(resources) == 2
 
 
+# _parse_summary tests
+
+
+def test_parse_summary_present():
+    stdout = json.dumps({
+        "resources": [],
+        "summary": {"valid": 3, "invalid": 1, "errors": 0, "skipped": 2},
+    })
+    summary = _parse_summary(stdout)
+
+    assert summary == {"valid": 3, "invalid": 1, "errors": 0, "skipped": 2}
+
+
+def test_parse_summary_absent_in_wrapped_json():
+    stdout = json.dumps({"resources": []})
+
+    assert _parse_summary(stdout) is None
+
+
+def test_parse_summary_absent_in_jsonl():
+    stdout = _make_resource_json() + "\n" + _make_resource_json(kind="Service")
+
+    assert _parse_summary(stdout) is None
+
+
+def test_parse_summary_empty():
+    assert _parse_summary("") is None
+    assert _parse_summary("  \n  ") is None
+
+
+def test_parse_summary_malformed_json():
+    assert _parse_summary("not json") is None
+
+
 # validate_manifests tests
 
 
@@ -137,6 +172,88 @@ def test_validate_all_valid(mocker):
     assert result.skipped == 0
     assert result.error is None
     assert len(result.resources) == 2
+
+
+def test_validate_all_valid_verbose_shape(mocker):
+    mock_run = mocker.patch("subprocess.run")
+    stdout = json.dumps({
+        "resources": [
+            {
+                "filename": "/tmp/ns-check.yaml",
+                "kind": "Namespace",
+                "name": "demo",
+                "version": "v1",
+                "status": "statusValid",
+                "msg": "",
+            },
+        ],
+        "summary": {"valid": 1, "invalid": 0, "errors": 0, "skipped": 0},
+    })
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=stdout, stderr="",
+    )
+
+    result = validate_manifests("/tmp/ns-check.yaml")
+
+    assert result.valid >= 1
+    assert result.resources
+    assert result.resources[0].kind == "Namespace"
+    assert result.passed is True
+
+
+def test_validate_all_valid_counts_from_summary_when_resources_empty(mocker):
+    mock_run = mocker.patch("subprocess.run")
+    stdout = json.dumps({
+        "resources": [],
+        "summary": {"valid": 1, "invalid": 0, "errors": 0, "skipped": 0},
+    })
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout=stdout, stderr="",
+    )
+
+    result = validate_manifests("/tmp/ns-check.yaml")
+
+    assert result.valid >= 1
+    assert result.passed is True
+
+
+def test_validate_command_includes_verbose(mocker):
+    mock_run = mocker.patch("subprocess.run")
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="", stderr="",
+    )
+
+    validate_manifests("/tmp/manifests")
+
+    cmd = mock_run.call_args[0][0]
+    assert "-verbose" in cmd
+
+
+def test_validate_summary_overrides_resource_counts(mocker):
+    mock_run = mocker.patch("subprocess.run")
+    stdout = json.dumps({
+        "resources": [
+            {
+                "filename": "deploy.yaml",
+                "kind": "Deployment",
+                "name": "bad",
+                "version": "apps/v1",
+                "status": "statusInvalid",
+                "msg": "spec.replicas: Invalid type",
+            },
+        ],
+        "summary": {"valid": 4, "invalid": 1, "errors": 0, "skipped": 0},
+    })
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout=stdout, stderr="",
+    )
+
+    result = validate_manifests("/tmp/manifests")
+
+    assert result.valid == 4
+    assert result.invalid == 1
+    assert result.passed is False
+    assert len(result.resources) == 1
 
 
 def test_validate_has_invalid(mocker):
@@ -281,6 +398,7 @@ def test_validate_default_flags_always_present(mocker):
     assert "-output" in cmd
     assert "json" in cmd
     assert "-summary" in cmd
+    assert "-verbose" in cmd
 
 
 def test_validate_path_in_command(mocker):
