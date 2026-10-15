@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15
     if: github.actor != 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           fetch-depth: 0
 
@@ -33,7 +33,7 @@ jobs:
         run: .venv/bin/python -m pytest tests/ --cov=src/kube_lint_mcp --cov-report=xml:coverage.xml
 
       - name: SonarQube Cloud Scan
-        uses: sonarsource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
+        uses: sonarsource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
