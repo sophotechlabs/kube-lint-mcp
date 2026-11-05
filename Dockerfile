@@ -37,7 +37,7 @@ RUN curl -fsSL "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_
     && chmod +x argocd
 
 # ---- Stage 2: Runtime ----
-FROM python:3.14-alpine@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
+FROM python:3.15-alpine@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
 
 LABEL io.modelcontextprotocol.server.name="io.github.sophotechlabs/kube-lint-mcp"
 
